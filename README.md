@@ -13,15 +13,18 @@ network includes the following modules:
 - `ne_state` : state machine with timeout
 
 ### example
-- `echo_server` : a single process server,
+- `echo_server` : a single process server
 
-test/echo_server.c
+see test/echo_server.c
+
 ```
 ./echo_server 'tcp@127.0.0.1:1234' 'stream@/tmp/echo_stream.sock'
 ```
 
 - `listener_worker`: one process listen, multi process process connection
-test/test_worker.c
+
+see test/test_worker.c
+
 ```
 ./test_worker 'tcp@127.0.0.1:1234' 10
 ```
