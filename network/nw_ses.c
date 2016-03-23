@@ -491,6 +491,7 @@ int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, int ses_ty
 int nw_ses_close(nw_ses *ses)
 {
     watch_stop(ses);
+    ses->magic = 0;
     if (ses->sockfd >=0) {
         close(ses->sockfd);
         ses->sockfd = -1;

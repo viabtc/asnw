@@ -128,9 +128,12 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
     clt->host_addr   = ses->host_addr;
     clt->sockfd      = sockfd;
     clt->sock_type   = ses->sock_type;
-    clt->magic       = svr->id_start++;
     clt->privdata    = privdata;
     clt->svr         = svr;
+
+    clt->magic = svr->id_start++;
+    if clt->magic == 0:
+        clt->magic = svr->id_start++;
 
     clt->decode_pkg  = svr->type.decode_pkg;
     clt->on_recv_pkg = svr->type.on_recv_pkg;
