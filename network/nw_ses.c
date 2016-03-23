@@ -374,6 +374,10 @@ int nw_ses_stop(nw_ses *ses)
 
 int nw_ses_send(nw_ses *ses, const void *data, size_t size)
 {
+    if (ses->sockfd < 0) {
+        return -1;
+    }
+
     if (ses->write_buf->count > 0) {
         size_t nwrite;
         if (ses->sock_type == SOCK_STREAM) {
