@@ -123,6 +123,7 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
         return -1;
     }
     memcpy(&clt->peer_addr, peer_addr, sizeof(nw_addr_t));
+    clt->magic = svr->id_start++;
     clt->svr = svr;
     clt->decode_pkg  = svr->type.decode_pkg;
     clt->on_recv_pkg = svr->type.on_recv_pkg;

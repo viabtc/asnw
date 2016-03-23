@@ -39,8 +39,11 @@ void on_close(nw_ses *ses)
 
 void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 {
-    ((char *)data)[size] = 0;
-    printf("from: %s recv: %zu: %s", nw_sock_human_addr(&ses->peer_addr), size, (char *)data);
+    char *str = malloc(size + 1);
+    memcpy(str, data, size);
+    str[size] = 0;
+    printf("from: %s recv: %zu: %s", nw_sock_human_addr(&ses->peer_addr), size, str);
+    free(str);
 }
 
 void on_error_msg(nw_ses *ses, const char *msg)

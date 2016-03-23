@@ -47,6 +47,7 @@ typedef struct nw_svr {
     uint32_t clt_count;
     uint32_t read_mem;
     uint32_t write_mem;
+    uint32_t id_start;
 } nw_svr;
 
 nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type);

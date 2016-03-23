@@ -30,11 +30,12 @@ typedef struct nw_ses {
     nw_buf *read_buf;
     nw_buf_list *write_buf;
     nw_buf_pool *pool;
+    uint32_t magic;
+    void *svr;
     void *privdata;
 
     struct nw_ses *prev;
     struct nw_ses *next;
-    void *svr;
 
     int  (*on_accept)(struct nw_ses *ses, int sockfd, nw_addr_t *peer_addr);
     int  (*decode_pkg)(struct nw_ses *ses, void *data, size_t max);

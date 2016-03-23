@@ -33,11 +33,14 @@ void on_connection_close(nw_ses *ses)
 
 void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 {
-    ((char *)data)[size] = 0;
-    printf("from: %s recv: %zu: %s", nw_sock_human_addr(&ses->peer_addr), size, (char *)data);
+    char *str = malloc(size + 1);
+    memcpy(str, data, size);
+    str[size] = 0;
+    printf("from: %s recv: %zu: %s", nw_sock_human_addr(&ses->peer_addr), size, str);
     if (nw_ses_send(ses, data, size) < 0) {
         printf("nw_ses_send fail\n");
     }
+    free(str);
 }
 
 void on_recv_fd(nw_ses *ses, int fd)

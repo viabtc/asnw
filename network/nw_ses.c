@@ -134,12 +134,12 @@ static void on_can_read(nw_ses *ses)
                     } else if (ret > 0) {
                         ses->on_recv_pkg(ses, ses->read_buf->data + ses->read_buf->rpos, ret);
                         ses->read_buf->rpos += ret;
-                        nw_buf_shift(ses->read_buf);
                     } else {
                         if (ses->read_buf->wpos == ses->read_buf->size) {
                             ses->on_error(ses, "decode msg error");
                             return;
                         }
+                        nw_buf_shift(ses->read_buf);
                         break;
                     }
                 }
