@@ -132,7 +132,7 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
     clt->svr         = svr;
 
     clt->magic = svr->id_start++;
-    if clt->magic == 0:
+    if (clt->magic == 0)
         clt->magic = svr->id_start++;
 
     clt->decode_pkg  = svr->type.decode_pkg;
