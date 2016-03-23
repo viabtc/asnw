@@ -158,6 +158,10 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
 
 static int on_accept(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
 {
+    nw_svr *svr = (nw_svr *)ses->svr;
+    if (svr->type.on_accept) {
+        return svr->type.on_accept(ses, sockfd, peer_addr);
+    }
     return nw_svr_add_clt(ses, sockfd, peer_addr);
 }
 
@@ -248,10 +252,6 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type)
         ses->on_error    = on_error;
         ses->on_close    = on_close;
 
-        if (nw_ses_bind(ses, host_addr) < 0) {
-            nw_svr_free(svr);
-            return NULL;
-        }
         if (cfg->bind_arr[i].sock_type == SOCK_DGRAM) {
             ses->peer_addr.family = host_addr->family;
             ses->peer_addr.addrlen = host_addr->addrlen;
@@ -265,10 +265,15 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type)
 int nw_svr_start(nw_svr *svr)
 {
     for (uint32_t i = 0; i < svr->svr_count; ++i) {
-        if (nw_ses_start(&svr->svr_list[i]) < 0) {
+        nw_ses *ses = &svr->svr_list[i];
+        if (nw_ses_bind(ses, ses->host_addr) < 0) {
+            return -1;
+        }
+        if (nw_ses_start(ses) < 0) {
             return -1;
         }
     }
+
     return 0;
 }
 

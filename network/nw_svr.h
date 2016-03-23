@@ -28,6 +28,7 @@ typedef struct nw_svr_cfg {
 
 typedef struct nw_svr_type {
     int (*decode_pkg)(nw_ses *ses, void *data, size_t max);
+    int (*on_accept)(nw_ses *ses, int sockfd, nw_addr_t *peer_addr);
     void (*on_new_connection)(nw_ses *ses);
     void (*on_connection_close)(nw_ses *ses);
     void (*on_recv_pkg)(nw_ses *ses, void *data, size_t size);
