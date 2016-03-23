@@ -88,6 +88,7 @@ static void nw_svr_free(nw_svr *svr)
         for (uint32_t i = 0; i < svr->svr_count; ++i) {
             if (svr->svr_list[i].write_buf != NULL) {
                 nw_ses_release(&svr->svr_list[i]);
+                free(svr->svr_list[i].host_addr);
             }
         }
         free(svr->svr_list);
@@ -98,24 +99,25 @@ static void nw_svr_free(nw_svr *svr)
 static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
 {
     nw_svr *svr = (nw_svr *)ses->svr;
+    set_socket_option(svr, sockfd);
     if (nw_sock_set_nonblock(sockfd) < 0) {
         return -1;
     }
-    set_socket_option(svr, sockfd);
+
+    void *privdata = NULL;
+    if (svr->type.on_privdata_alloc) {
+        privdata = svr->type.on_privdata_alloc();
+        if (privdata == NULL) {
+            return -1;
+        }
+    }
+
     nw_ses *clt = nw_cache_alloc(svr->clt_cache);
     if (clt == NULL) {
         return -1;
     }
     memset(clt, sizeof(nw_ses), 0);
-    void *privdata = NULL;
-    if (svr->type.on_privdata_alloc) {
-        privdata = svr->type.on_privdata_alloc();
-        if (privdata == NULL) {
-            nw_cache_free(svr->clt_cache, clt);
-            return -1;
-        }
-    }
-    if (nw_ses_init(clt, nw_default_loop, sockfd, ses->sock_type, NW_SES_TYPE_COMMON, ses->host_addr, svr->buf_pool, privdata) < 0) {
+    if (nw_ses_init(clt, nw_default_loop, svr->buf_pool, NW_SES_TYPE_COMMON) < 0) {
         nw_cache_free(svr->clt_cache, clt);
         if (privdata) {
             svr->type.on_privdata_free(privdata);
@@ -123,8 +125,13 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
         return -1;
     }
     memcpy(&clt->peer_addr, peer_addr, sizeof(nw_addr_t));
-    clt->magic = svr->id_start++;
-    clt->svr = svr;
+    clt->host_addr   = ses->host_addr;
+    clt->sockfd      = sockfd;
+    clt->sock_type   = ses->sock_type;
+    clt->magic       = svr->id_start++;
+    clt->privdata    = privdata;
+    clt->svr         = svr;
+
     clt->decode_pkg  = svr->type.decode_pkg;
     clt->on_recv_pkg = svr->type.on_recv_pkg;
     clt->on_recv_fd  = svr->type.on_recv_fd == NULL ? on_recv_fd : svr->type.on_recv_fd;
@@ -221,22 +228,30 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type)
             return NULL;
         }
         memcpy(host_addr, &cfg->bind_arr[i].addr, sizeof(nw_addr_t));
-        if (nw_ses_init(ses, nw_default_loop, sockfd, cfg->bind_arr[i].sock_type, NW_SES_TYPE_SERVER, host_addr, svr->buf_pool, NULL) < 0) {
+        if (nw_ses_init(ses, nw_default_loop, svr->buf_pool, NW_SES_TYPE_SERVER) < 0) {
+            free(host_addr);
             nw_svr_free(svr);
             return NULL;
         }
-        ses->svr = svr;
+        ses->sockfd      = sockfd;
+        ses->sock_type   = cfg->bind_arr[i].sock_type;
+        ses->host_addr   = host_addr;
+        ses->svr         = svr;
+
         ses->on_accept   = on_accept;
         ses->decode_pkg  = type->decode_pkg;
         ses->on_recv_pkg = type->on_recv_pkg;
         ses->on_recv_fd  = type->on_recv_fd == NULL ? on_recv_fd : type->on_recv_fd;
         ses->on_error    = on_error;
         ses->on_close    = on_close;
+
         if (nw_ses_bind(ses, host_addr) < 0) {
             nw_svr_free(svr);
             return NULL;
         }
         if (cfg->bind_arr[i].sock_type == SOCK_DGRAM) {
+            ses->peer_addr.family = host_addr->family;
+            ses->peer_addr.addrlen = host_addr->addrlen;
             set_socket_option(svr, sockfd);
         }
     }
@@ -277,6 +292,7 @@ void nw_svr_release(nw_svr *svr)
         nw_cache_free(svr->clt_cache, curr);
         curr = next;
     }
+    nw_cache_release(svr->clt_cache);
     nw_svr_free(svr);
 }
 

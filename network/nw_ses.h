@@ -31,8 +31,8 @@ typedef struct nw_ses {
     nw_buf_list *write_buf;
     nw_buf_pool *pool;
     uint32_t magic;
-    void *svr;
     void *privdata;
+    void *svr;
 
     struct nw_ses *prev;
     struct nw_ses *next;
@@ -53,7 +53,8 @@ int nw_ses_start(nw_ses *ses);
 int nw_ses_stop(nw_ses *ses);
 int nw_ses_send(nw_ses *ses, const void *data, size_t size);
 int nw_ses_send_fd(nw_ses *ses, int fd);
-int nw_ses_init(nw_ses *ses, struct ev_loop *loop, int sockfd, int sock_type, int ses_type, nw_addr_t *host_addr, nw_buf_pool *pool, void *privdata);
+
+int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, int ses_type);
 int nw_ses_close(nw_ses *ses);
 int nw_ses_release(nw_ses *ses);
 

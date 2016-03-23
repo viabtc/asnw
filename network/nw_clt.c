@@ -140,11 +140,17 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
     memset(host_addr, 0, sizeof(nw_addr_t));
     host_addr->family = cfg->addr.family;
     host_addr->addrlen = cfg->addr.addrlen;
-    if (nw_ses_init(&clt->ses, nw_default_loop, -1, cfg->sock_type, NW_SES_TYPE_CLIENT, host_addr, clt->buf_pool, privdata) < 0) {
+
+    if (nw_ses_init(&clt->ses, nw_default_loop, clt->buf_pool, NW_SES_TYPE_CLIENT) < 0) {
         nw_clt_release(clt);
         return NULL;
     }
     memcpy(&clt->ses.peer_addr, &cfg->addr, sizeof(nw_addr_t));
+    clt->ses.host_addr   = host_addr;
+    clt->ses.sockfd      = -1;
+    clt->ses.sock_type   = cfg->sock_type;
+    clt->ses.privdata    = privdata;
+
     clt->ses.decode_pkg  = type->decode_pkg;
     clt->ses.on_recv_pkg = type->on_recv_pkg;
     clt->ses.on_recv_fd  = type->on_recv_fd == NULL ? on_recv_fd : type->on_recv_fd;
@@ -201,7 +207,9 @@ int nw_clt_release(nw_clt *clt)
     if (clt->buf_pool) {
         nw_buf_pool_release(clt->buf_pool);
     }
+    free(clt->ses.host_addr);
     free(clt);
+
     return 0;
 }
 

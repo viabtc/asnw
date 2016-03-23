@@ -470,22 +470,16 @@ int nw_ses_send_fd(nw_ses *ses, int fd)
     return sendmsg(ses->sockfd, &msg, MSG_EOR);
 }
 
-int nw_ses_init(nw_ses *ses, struct ev_loop *loop, int sockfd, int sock_type, int ses_type, nw_addr_t *host_addr, nw_buf_pool *pool, void *privdata)
+int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, int ses_type)
 {
     memset(ses, 0, sizeof(nw_ses));
     ses->loop = loop;
-    ses->sockfd = sockfd;
-    ses->sock_type = sock_type;
     ses->ses_type = ses_type;
-    ses->host_addr = host_addr;
-    ses->peer_addr.family = host_addr->family;
-    ses->peer_addr.addrlen = host_addr->addrlen;
+    ses->pool = pool;
     ses->write_buf = nw_buf_list_create(pool);
     if (ses->write_buf == NULL) {
         return -1;
     }
-    ses->pool = pool;
-    ses->privdata = privdata;
 
     return 0;
 }
@@ -513,10 +507,6 @@ int nw_ses_release(nw_ses *ses)
     nw_ses_close(ses);
     nw_buf_list_release(ses->write_buf);
     ses->write_buf = NULL;
-    if (ses->ses_type == NW_SES_TYPE_SERVER || ses->ses_type == NW_SES_TYPE_CLIENT) {
-        if (ses->host_addr)
-            free(ses->host_addr);
-    }
 
     return 0;
 }
