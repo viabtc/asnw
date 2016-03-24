@@ -23,8 +23,8 @@ see test/echo_server.c
 
 - `listener_worker`: one process listen, multi process process connection
 
-see test/test_worker.c
+see test/listener_worker.c
 
 ```
-./test_worker 'tcp@127.0.0.1:1234' 10
+./listener_worker 'tcp@127.0.0.1:1234' 10
 ```

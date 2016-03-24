@@ -42,11 +42,17 @@ int outer_on_accept(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
     for (int i = 0; i < worker && curr != NULL; ++i) {
         curr = curr->next;
     }
-    if (curr) {
-        nw_ses_send_fd(curr, sockfd);
+    if (!curr) {
+        return -1;
+    }
+    if (nw_ses_send_fd(curr, sockfd) < 0) {
+        return -1;
     }
 
-    return -1;
+    // close it after success send
+    close(sockfd);
+
+    return 0;
 }
 
 void outer_on_new_connection(nw_ses *ses)
@@ -286,7 +292,6 @@ int main(int argc, char *argv[])
             error(1, errno, "init listener fail");
         }
     } else {
-        usleep(100 * 1000);
         if (nw_clt_start(inner_clt) < 0) {
             error(1, errno, "nw_clt_start fail");
         }
