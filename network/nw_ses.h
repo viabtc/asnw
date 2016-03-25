@@ -30,7 +30,7 @@ typedef struct nw_ses {
     nw_buf *read_buf;
     nw_buf_list *write_buf;
     nw_buf_pool *pool;
-    uint32_t magic;
+    uint32_t id;
     void *privdata;
     void *svr;
 
