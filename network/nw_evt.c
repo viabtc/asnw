@@ -56,7 +56,7 @@ void nw_loop_break(void)
     if (!running)
         return;
 
-    ev_break(nw_default_loop, 0);
+    ev_break(nw_default_loop, EVBREAK_ALL);
     running = 0;
     return;
 }
