@@ -85,7 +85,7 @@ static void on_connect(nw_ses *ses, bool result)
         clt->type.on_connect(ses, result);
     }
     if (result) {
-        clt->ses.connected = true;
+        clt->connected = true;
         set_socket_option(clt, clt->ses.sockfd);
         nw_sock_host_addr(ses->sockfd, ses->host_addr);
     } else {
@@ -177,10 +177,10 @@ int nw_clt_start(nw_clt *clt)
     }
 
     if (clt->ses.sock_type == SOCK_STREAM || clt->ses.sock_type == SOCK_SEQPACKET) {
-        clt->ses.connected = false;
+        clt->connected = false;
         return nw_ses_connect(&clt->ses, &clt->ses.peer_addr);
     } else {
-        clt->ses.connected = true;
+        clt->connected = true;
         set_socket_option(clt, clt->ses.sockfd);
         nw_sock_host_addr(clt->ses.sockfd, clt->ses.host_addr);
         return nw_ses_start(&clt->ses);
@@ -195,7 +195,7 @@ int nw_clt_close(nw_clt *clt)
     if (nw_timer_active(&clt->timer)) {
         nw_timer_stop(&clt->timer);
     }
-    clt->ses.connected = false;
+    clt->connected = false;
     return nw_ses_close(&clt->ses);
 }
 
@@ -215,6 +215,6 @@ int nw_clt_release(nw_clt *clt)
 
 int nw_clt_connected(nw_clt *clt)
 {
-    return clt->ses.connected;
+    return clt->connected;
 }
 

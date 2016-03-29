@@ -24,7 +24,6 @@ typedef struct nw_ses {
     int sockfd;
     int sock_type;
     int ses_type;
-    bool connected;
     nw_addr_t peer_addr;
     nw_addr_t *host_addr;
     nw_buf *read_buf;

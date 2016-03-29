@@ -295,7 +295,6 @@ static void on_can_connect(nw_ses *ses)
         return;
     }
 
-    ses->connected = true;
     ses->on_connect(ses, true);
     watch_read(ses);
 }

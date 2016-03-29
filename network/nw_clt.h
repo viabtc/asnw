@@ -37,6 +37,7 @@ typedef struct nw_clt {
     nw_clt_type type;
     nw_buf_pool *buf_pool;
     nw_timer timer;
+    bool connected;
     double reconnect_timeout;
     uint32_t read_mem;
     uint32_t write_mem;
