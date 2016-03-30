@@ -42,7 +42,6 @@ int nw_sock_get_recv_buf(int sockfd, int *buf_size);
 int nw_sock_set_send_buf(int sockfd, int buf_size);
 int nw_sock_set_recv_buf(int sockfd, int buf_size);
 
-int nw_sock_set_defer_accept(int sockfd);
 int nw_sock_set_nonblock(int sockfd);
 int nw_sock_set_no_delay(int sockfd);
 int nw_sock_set_reuse_addr(int sockfd);

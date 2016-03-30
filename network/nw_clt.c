@@ -199,7 +199,7 @@ int nw_clt_close(nw_clt *clt)
     return nw_ses_close(&clt->ses);
 }
 
-int nw_clt_release(nw_clt *clt)
+void nw_clt_release(nw_clt *clt)
 {
     if (clt->ses.write_buf) {
         nw_ses_release(&clt->ses);
@@ -209,11 +209,9 @@ int nw_clt_release(nw_clt *clt)
     }
     free(clt->ses.host_addr);
     free(clt);
-
-    return 0;
 }
 
-int nw_clt_connected(nw_clt *clt)
+bool nw_clt_connected(nw_clt *clt)
 {
     return clt->connected;
 }

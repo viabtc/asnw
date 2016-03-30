@@ -152,7 +152,7 @@ int init_outer_svr(nw_svr_bind *bind)
     type.on_recv_pkg = outer_on_recv_pkg;
     type.on_error_msg = outer_on_error_msg;
 
-    outer_svr = nw_svr_create(&cfg, &type);
+    outer_svr = nw_svr_create(&cfg, &type, NULL);
     if (outer_svr == NULL) {
         return -1;
     }
@@ -180,7 +180,7 @@ int init_inner_svr(void)
     type.on_recv_pkg = inner_svr_on_recv_pkg;
     type.on_error_msg = inner_svr_on_error_msg;
 
-    inner_svr = nw_svr_create(&cfg, &type);
+    inner_svr = nw_svr_create(&cfg, &type, NULL);
     if (inner_svr == NULL) {
         return -1;
     }

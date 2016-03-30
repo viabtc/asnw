@@ -217,14 +217,6 @@ int nw_sock_set_recv_buf(int sockfd, int buf_size)
     return 0;
 }
 
-int nw_sock_set_defer_accept(int sockfd)
-{
-    int defer = 1;
-    if (setsockopt(sockfd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &defer, sizeof(defer)) != 0)
-        return -1;
-    return 0;
-}
-
 int nw_sock_set_nonblock(int sockfd)
 {
     int flags = fcntl(sockfd, F_GETFL, 0);

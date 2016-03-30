@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
     type.on_recv_fd = on_recv_fd;
     type.on_error_msg = on_error_msg;
 
-    nw_svr *svr = nw_svr_create(&cfg, &type);
+    nw_svr *svr = nw_svr_create(&cfg, &type, NULL);
     if (svr == NULL) {
         printf("nw_svr_create fail\n");
         exit(0);

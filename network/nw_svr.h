@@ -34,8 +34,8 @@ typedef struct nw_svr_type {
     void (*on_recv_pkg)(nw_ses *ses, void *data, size_t size);
     void (*on_recv_fd)(nw_ses *ses, int fd);
     void (*on_error_msg)(nw_ses *ses, const char *msg);
-    void *(*on_privdata_alloc)(void);
-    void (*on_privdata_free)(void *privdata);
+    void *(*on_privdata_alloc)(void *svr);
+    void (*on_privdata_free)(void *svr, void *privdata);
 } nw_svr_type;
 
 typedef struct nw_svr {
@@ -49,9 +49,10 @@ typedef struct nw_svr {
     uint32_t read_mem;
     uint32_t write_mem;
     uint32_t id_start;
+    void *privdata;
 } nw_svr;
 
-nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type);
+nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata);
 int nw_svr_add_clt_fd(nw_svr *svr, int fd);
 int nw_svr_start(nw_svr *svr);
 int nw_svr_stop(nw_svr *svr);

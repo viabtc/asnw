@@ -501,8 +501,10 @@ int nw_ses_close(nw_ses *ses)
         nw_buf_free(ses->pool, ses->read_buf);
         ses->read_buf = NULL;
     }
-    while (ses->write_buf->count) {
-        nw_buf_list_shift(ses->write_buf);
+    if (ses->write_buf) {
+        while (ses->write_buf->count) {
+            nw_buf_list_shift(ses->write_buf);
+        }
     }
 
     return 0;
@@ -511,8 +513,10 @@ int nw_ses_close(nw_ses *ses)
 int nw_ses_release(nw_ses *ses)
 {
     nw_ses_close(ses);
-    nw_buf_list_release(ses->write_buf);
-    ses->write_buf = NULL;
+    if (ses->write_buf) {
+        nw_buf_list_release(ses->write_buf);
+        ses->write_buf = NULL;
+    }
 
     return 0;
 }

@@ -7,6 +7,7 @@
 # define _NW_CLT_H_
 
 # include <stdint.h>
+# include <stdbool.h>
 
 # include "nw_buf.h"
 # include "nw_evt.h"
@@ -46,8 +47,8 @@ typedef struct nw_clt {
 nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata);
 int nw_clt_start(nw_clt *clt);
 int nw_clt_close(nw_clt *clt);
-int nw_clt_release(nw_clt *clt);
-int nw_clt_connected(nw_clt *clt);
+void nw_clt_release(nw_clt *clt);
+bool nw_clt_connected(nw_clt *clt);
 
 # endif
 
