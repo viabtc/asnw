@@ -1,7 +1,7 @@
 # Network
-A high performance asynchronous network programming library base on libev and in c
+A high performance asynchronous network programming library is based on libev and in C.
 
-network includes the following modules:
+Network including the following modules:
 
 - `nw_buf`   : buf manager
 - `nw_evt`   : main loop
@@ -30,7 +30,7 @@ see test/listener_worker.c
 ```
 
 ### wrapper
-network is a very basic network programming library, but you can wrapper the basic nw_clt
+Network is a very basic network programming library, but you can wrapper the basic nw_clt
 and nw_svr to be more complex.
 
 wrapper/ut_rpc is a wrapper example.
