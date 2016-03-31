@@ -1,5 +1,5 @@
 # Network
-A high performance asynchronous network programming library is based on libev and in C.
+A high performance asynchronous network programming library based on libev and in C.
 
 Network including the following modules:
 
