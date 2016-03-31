@@ -89,8 +89,16 @@ static void on_connect(nw_ses *ses, bool result)
         set_socket_option(clt, clt->ses.sockfd);
         nw_sock_host_addr(ses->sockfd, ses->host_addr);
     } else {
+        int ret = 0;
+        if (clt->type.on_close) {
+            ret = clt->type.on_close(&clt->ses);
+        }
         nw_clt_close(clt);
-        reconnect_later(clt);
+        if (ret > 0) {
+            nw_clt_start(clt);
+        } else {
+            reconnect_later(clt);
+        }
     }
 }
 
@@ -100,15 +108,31 @@ static void on_error(nw_ses *ses, const char *msg)
     if (clt->type.on_error_msg) {
         clt->type.on_error_msg(ses, msg);
     }
+    int ret = 0;
+    if (clt->type.on_close) {
+        ret = clt->type.on_close(&clt->ses);
+    }
     nw_clt_close(clt);
-    reconnect_later(clt);
+    if (ret > 0) {
+        nw_clt_start(clt);
+    } else {
+        reconnect_later(clt);
+    }
 }
 
 static void on_close(nw_ses *ses)
 {
     nw_clt *clt = (nw_clt *)ses;
+    int ret = 0;
+    if (clt->type.on_close) {
+        ret = clt->type.on_close(&clt->ses);
+    }
     nw_clt_close(clt);
-    reconnect_later(clt);
+    if (ret > 0) {
+        nw_clt_start(clt);
+    } else {
+        reconnect_later(clt);
+    }
 }
 
 nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
@@ -189,9 +213,6 @@ int nw_clt_start(nw_clt *clt)
 
 int nw_clt_close(nw_clt *clt)
 {
-    if (clt->type.on_close) {
-        clt->type.on_close(&clt->ses);
-    }
     if (nw_timer_active(&clt->timer)) {
         nw_timer_stop(&clt->timer);
     }

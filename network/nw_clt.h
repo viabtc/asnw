@@ -26,8 +26,8 @@ typedef struct nw_clt_cfg {
 
 typedef struct nw_clt_type {
     int (*decode_pkg)(nw_ses *ses, void *data, size_t max);
+    int (*on_close)(nw_ses *ses);
     void (*on_connect)(nw_ses *ses, bool result);
-    void (*on_close)(nw_ses *ses);
     void (*on_recv_pkg)(nw_ses *ses, void *data, size_t size);
     void (*on_recv_fd)(nw_ses *ses, int fd);
     void (*on_error_msg)(nw_ses *ses, const char *msg);
