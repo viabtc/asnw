@@ -5,6 +5,8 @@
 
 # include <stdlib.h>
 # include <assert.h>
+# include <sys/time.h>
+# include <unistd.h>
 
 # include "ut_rpc.h"
 # include "ut_crc32.h"
@@ -51,5 +53,12 @@ int rpc_send(nw_ses *ses, rpc_pkg *pkg)
     pkg->crc32 = 0;
     pkg->crc32 = generate_crc32c(send_buf, pkg_size);
     return nw_ses_send(ses, send_buf, pkg_size);
+}
+
+double current_timestamp(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + tv.tv_usec / 1000000.0;
 }
 

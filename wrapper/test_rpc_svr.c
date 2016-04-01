@@ -11,7 +11,6 @@
 # include <errno.h>
 
 # include "ut_rpc_svr.h"
-# include "ut_misc.h"
 
 void on_new_connection(nw_ses *ses)
 {
@@ -25,9 +24,6 @@ void on_connection_close(nw_ses *ses)
 
 void on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
 {
-    sds hex = hex_dump(pkg->body, pkg->body_size);
-    printf("from: %s, cmd: %u\n%s\n", nw_sock_human_addr(&ses->peer_addr), pkg->command, hex);
-    sdsfree(hex);
     rpc_send(ses, pkg);
 }
 

@@ -11,7 +11,6 @@
 # include <errno.h>
 
 # include "ut_rpc_clt.h"
-# include "ut_misc.h"
 # include "nw_timer.h"
 
 void on_connect(nw_ses *ses, bool result)
@@ -25,9 +24,6 @@ void on_connect(nw_ses *ses, bool result)
 
 void on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
 {
-    sds hex = hex_dump(pkg->body, pkg->body_size);
-    printf("from: %s\n%s\n", nw_sock_human_addr(&ses->peer_addr), hex);
-    sdsfree(hex);
 }
 
 void on_timer(nw_timer *timer, void *privdata)

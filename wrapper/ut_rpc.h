@@ -37,6 +37,8 @@ typedef struct rpc_pkg {
 int rpc_decode(nw_ses *ses, void *data, size_t max);
 int rpc_send(nw_ses *ses, rpc_pkg *pkg);
 
+double current_timestamp(void);
+
 # define RPC_HEARTBEAT_INTERVAL 1.0
 # define RPC_HEARTBEAT_TIMEOUT  3.0
 

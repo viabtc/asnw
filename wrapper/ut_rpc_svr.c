@@ -6,9 +6,7 @@
 # include <assert.h>
 
 # include "ut_rpc_svr.h"
-# include "ut_misc.h"
 # include "ut_crc32.h"
-# include "ut_log.h"
 # include "nw_sock.h"
 
 struct clt_info {
@@ -46,7 +44,6 @@ static void on_new_connection(nw_ses *ses)
 
 static void on_error_msg(nw_ses *ses, const char *msg)
 {
-    log_error("peer: %s: %s", nw_sock_human_addr(&ses->peer_addr), msg);
 }
 
 static void *on_privdata_alloc(void *svr)
@@ -74,7 +71,6 @@ static void on_timer(nw_timer *timer, void *privdata)
         next = curr->next;
         struct clt_info *info = curr->privdata;
         if (now - info->last_heartbeat > RPC_HEARTBEAT_TIMEOUT) {
-            log_error("peer: %s: heartbeat timeout", nw_sock_human_addr(&curr->peer_addr));
             nw_svr_close_clt(svr->raw_svr, curr);
         }
         curr = next;

@@ -6,9 +6,7 @@
 # include <assert.h>
 
 # include "ut_rpc_clt.h"
-# include "ut_misc.h"
 # include "ut_crc32.h"
-# include "ut_log.h"
 # include "nw_sock.h"
 
 static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
@@ -28,7 +26,6 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 
 static void on_error_msg(nw_ses *ses, const char *msg)
 {
-    log_error("peer: %s: %s", nw_sock_human_addr(&ses->peer_addr), msg);
 }
 
 static void on_connect(nw_ses *ses, bool result)
@@ -46,7 +43,6 @@ static void on_connect(nw_ses *ses, bool result)
 static int on_close(nw_ses *ses)
 {
     rpc_clt *clt= ses->privdata;
-    log_error("connection %s -> %s close", clt->name, nw_sock_human_addr(&ses->peer_addr));
 
     if (clt->curr_index == clt->addr_count) {
         clt->curr_index = 0;
@@ -67,7 +63,6 @@ static void on_timer(nw_timer *timer, void *privdata)
 
     double now = current_timestamp();
     if (now - clt->last_heartbeat > RPC_HEARTBEAT_TIMEOUT) {
-        log_error("peer: %s: heartbeat timeout", nw_sock_human_addr(&clt->raw_clt->ses.peer_addr));
         nw_clt_close(clt->raw_clt);
         nw_clt_start(clt->raw_clt);
     } else {
