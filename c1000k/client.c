@@ -14,8 +14,26 @@
 # include <netinet/in.h>
 # include <arpa/inet.h>
 # include <netdb.h> 
+# include <sys/file.h>
+# include <sys/resource.h>
 
-# include "ut_misc.h"
+int set_file_limit(size_t limit)
+{
+    struct rlimit rlim;
+    memset(&rlim, 0, sizeof(rlim));
+    if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        return -1;
+    }
+    if (rlim.rlim_cur >= limit)
+        return 0;
+    rlim.rlim_cur = limit;
+    rlim.rlim_max = limit;
+    if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
 
 int main(int argc, char *argv[])
 {

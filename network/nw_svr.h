@@ -45,10 +45,11 @@ typedef struct nw_svr {
     nw_buf_pool *buf_pool;
     nw_cache *clt_cache;
     nw_ses *clt_list_head;
+    nw_ses *clt_list_tail;
     uint32_t clt_count;
     uint32_t read_mem;
     uint32_t write_mem;
-    uint32_t id_start;
+    uint64_t id_start;
     void *privdata;
 } nw_svr;
 

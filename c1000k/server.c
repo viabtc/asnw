@@ -8,10 +8,11 @@
 # include <unistd.h>
 # include <errno.h>
 # include <error.h>
+# include <sys/file.h>
+# include <sys/resource.h>
 
 # include "nw_svr.h"
 # include "nw_timer.h"
-# include "ut_misc.h"
 
 int decode_pkg(nw_ses *ses, void *data, size_t max)
 {
@@ -38,8 +39,28 @@ void on_timer(nw_timer *timer, void *privdata)
     printf("clt count: %u\n", svr->clt_count);
 }
 
+int set_file_limit(size_t limit)
+{
+    struct rlimit rlim;
+    memset(&rlim, 0, sizeof(rlim));
+    if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        return -1;
+    }
+    if (rlim.rlim_cur >= limit)
+        return 0;
+    rlim.rlim_cur = limit;
+    rlim.rlim_max = limit;
+    if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
+    set_file_limit(1001000);
+
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 100;
@@ -68,8 +89,6 @@ int main(int argc, char *argv[])
     nw_timer timer;
     nw_timer_set(&timer, 1.0, true, on_timer, svr);
     nw_timer_start(&timer);
-
-    set_file_limit(1001000);
 
     printf("server start\n");
     nw_loop_run();

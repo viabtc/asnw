@@ -112,7 +112,7 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
     if (clt == NULL) {
         return -1;
     }
-    memset(clt, sizeof(nw_ses), 0);
+    memset(clt, 0, sizeof(nw_ses));
     if (nw_ses_init(clt, nw_default_loop, svr->buf_pool, NW_SES_TYPE_COMMON) < 0) {
         nw_cache_free(svr->clt_cache, clt);
         if (privdata) {
@@ -137,17 +137,23 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
     clt->on_error    = on_error;
     clt->on_close    = on_close;
 
-    clt->next = svr->clt_list_head;
-    if (clt->next) {
-        clt->next->prev = clt;
+    if (svr->clt_list_tail) {
+        clt->prev = svr->clt_list_tail;
+        svr->clt_list_tail->next = clt;
+        svr->clt_list_tail = clt;
+        clt->next = NULL;
+    } else {
+        svr->clt_list_head = clt;
+        svr->clt_list_tail = clt;
+        clt->prev = NULL;
+        clt->next = NULL;
     }
-    svr->clt_list_head = clt;
     svr->clt_count++;
+    nw_ses_start(clt);
+
     if (svr->type.on_new_connection) {
         svr->type.on_new_connection(clt);
     }
-
-    nw_ses_start(clt);
 
     return 0;
 }
@@ -197,7 +203,7 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
     nw_svr *svr = malloc(sizeof(nw_svr));
     if (svr == NULL)
         return NULL;
-    memset(svr, sizeof(nw_svr), 0);
+    memset(svr, 0, sizeof(nw_svr));
     svr->type = *type;
     svr->svr_count = cfg->bind_count;
     svr->svr_list = malloc(sizeof(nw_ses) * svr->svr_count);
@@ -218,7 +224,7 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
     svr->read_mem = cfg->read_mem;
     svr->write_mem = cfg->write_mem;
     svr->privdata = privdata;
-    memset(svr->svr_list, sizeof(nw_ses) * svr->svr_count, 0);
+    memset(svr->svr_list, 0, sizeof(nw_ses) * svr->svr_count);
     for (uint32_t i = 0; i < svr->svr_count; ++i) {
         nw_ses *ses = &svr->svr_list[i];
         int sockfd = create_socket(cfg->bind_arr[i].addr.family, cfg->bind_arr[i].sock_type);
@@ -290,15 +296,14 @@ void nw_svr_release(nw_svr *svr)
     nw_ses *curr = svr->clt_list_head;
     while (curr) {
         nw_ses *next = curr->next;
-        if (curr->privdata) {
-            svr->type.on_privdata_free(svr, curr->privdata);
-        }
         if (svr->type.on_connection_close) {
             svr->type.on_connection_close(curr);
         }
+        if (curr->privdata) {
+            svr->type.on_privdata_free(svr, curr->privdata);
+        }
         nw_ses_release(curr);
         nw_cache_free(svr->clt_cache, curr);
-
         curr = next;
     }
     for (uint32_t i = 0; i < svr->svr_count; ++i) {
@@ -315,9 +320,13 @@ void nw_svr_close_clt(nw_svr *svr, nw_ses *ses)
     }
     if (ses->prev) {
         ses->prev->next = ses->next;
+    } else {
+        svr->clt_list_head = ses->next;
     }
     if (ses->next) {
         ses->next->prev = ses->prev;
+    } else {
+        svr->clt_list_tail = ses->prev;
     }
     if (ses->privdata) {
         svr->type.on_privdata_free(svr, ses->privdata);
@@ -325,8 +334,5 @@ void nw_svr_close_clt(nw_svr *svr, nw_ses *ses)
     nw_ses_release(ses);
     nw_cache_free(svr->clt_cache, ses);
     svr->clt_count--;
-    if (svr->clt_count == 0) {
-        svr->clt_list_head = NULL;
-    }
 }
 

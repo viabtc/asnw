@@ -10,7 +10,7 @@
 
 # define NW_STATE_HASH_TABLE_INIT_SIZE 64
 
-nw_state *nw_state_create(nw_state_timeout_callback timeout_callback)
+nw_state *nw_state_create(void)
 {
     nw_loop_init();
     nw_state *context = malloc(sizeof(nw_state));
@@ -25,7 +25,6 @@ nw_state *nw_state_create(nw_state_timeout_callback timeout_callback)
         free(context);
         return NULL;
     }
-    context->timeout_callback = timeout_callback;
     context->loop = nw_default_loop;
     for (int i = 0; i < NW_STATE_CACHE_NUM; ++i) {
         context->caches[i] = nw_cache_create(2 << (i + 2));
@@ -126,12 +125,13 @@ static int state_remove(nw_state *context, nw_state_entry *entry)
 static void on_timeout(struct ev_loop *loop, ev_timer *ev, int events)
 {
     nw_state_entry *entry = (nw_state_entry *)ev;
+    entry->callback(entry);
     nw_state *context = entry->context;
-    context->timeout_callback(entry);
     state_remove(context, entry);
 }
 
-nw_state_entry *nw_state_add(nw_state *context, uint32_t size, double timeout)
+nw_state_entry *nw_state_add(nw_state *context, uint32_t size, \
+        double timeout, nw_state_callback callback)
 {
     if (context->used == UINT32_MAX)
         return NULL;
@@ -144,6 +144,7 @@ nw_state_entry *nw_state_add(nw_state *context, uint32_t size, double timeout)
     if (entry->id == 0)
         entry->id = ++context->id;
     entry->context = context;
+    entry->callback = callback;
     entry->data_size = size;
     ev_timer_init(&entry->ev, on_timeout, timeout, 0);
     ev_timer_start(context->loop, &entry->ev);

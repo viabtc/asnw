@@ -62,6 +62,39 @@ char *nw_sock_human_addr_s(nw_addr_t *addr, char *dest)
     return dest;
 }
 
+char *nw_sock_ip(nw_addr_t *addr)
+{
+    static char ip[INET6_ADDRSTRLEN];
+    switch (addr->family) {
+    case AF_INET:
+        inet_ntop(addr->family, &addr->in.sin_addr, ip, sizeof(ip));
+        break;
+    case AF_INET6:
+        inet_ntop(addr->family, &addr->in6.sin6_addr, ip, sizeof(ip));
+        break;
+    default:
+        ip[0] = 0;
+        break;
+    }
+    return ip;
+}
+
+char *nw_sock_ip_s(nw_addr_t *addr, char *ip)
+{
+    switch (addr->family) {
+    case AF_INET:
+        inet_ntop(addr->family, &addr->in.sin_addr, ip, NW_SOCK_IP_SIZE);
+        break;
+    case AF_INET6:
+        inet_ntop(addr->family, &addr->in6.sin6_addr, ip, NW_SOCK_IP_SIZE);
+        break;
+    default:
+        ip[0] = 0;
+        break;
+    }
+    return ip;
+}
+
 int nw_sock_peer_addr(int sockfd, nw_addr_t *addr)
 {
     addr->addrlen = sizeof(addr->un);

@@ -13,6 +13,7 @@ extern struct ev_loop *nw_default_loop;
 void nw_loop_init(void);
 void nw_loop_run(void);
 void nw_loop_break(void);
+void nw_loop_break_later(double waittime);
 
 # endif
 

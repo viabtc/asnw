@@ -97,6 +97,7 @@ static void on_can_read(nw_ses *ses)
         ses->read_buf = nw_buf_alloc(ses->pool);
         if (ses->read_buf == NULL) {
             ses->on_error(ses, "no recv buf");
+            return;
         }
     }
 
@@ -133,6 +134,8 @@ static void on_can_read(nw_ses *ses)
                         return;
                     } else if (ret > 0) {
                         ses->on_recv_pkg(ses, ses->read_buf->data + ses->read_buf->rpos, ret);
+                        if (!ses->read_buf)
+                            return;
                         ses->read_buf->rpos += ret;
                     } else {
                         nw_buf_shift(ses->read_buf);
@@ -170,6 +173,8 @@ static void on_can_read(nw_ses *ses)
                     }
                 }
                 ses->on_recv_pkg(ses, ses->read_buf->data, ret);
+                if (!ses->read_buf)
+                    return;
             }
             nw_buf_free(ses->pool, ses->read_buf);
             ses->read_buf = NULL;
@@ -215,6 +220,8 @@ static void on_can_read(nw_ses *ses)
                     }
                 } else {
                     ses->on_recv_pkg(ses, ses->read_buf->data, ret);
+                    if (!ses->read_buf)
+                        return;
                 }
             }
             nw_buf_free(ses->pool, ses->read_buf);

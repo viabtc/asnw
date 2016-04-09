@@ -111,7 +111,7 @@ void inner_clt_on_connect(nw_ses *ses, bool result)
     }
 }
 
-void inner_clt_on_close(nw_ses *ses)
+int inner_clt_on_close(nw_ses *ses)
 {
     printf("worker: %d connection with listener close\n", worker_id);
 }

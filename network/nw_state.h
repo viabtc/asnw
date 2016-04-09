@@ -12,16 +12,18 @@
 # include "nw_evt.h"
 # include "nw_buf.h"
 
+struct nw_state_entry;
+typedef void (*nw_state_callback)(struct nw_state_entry *entry);
+
 typedef struct nw_state_entry {
     ev_timer ev;
     uint32_t id;
     void *context;
+    nw_state_callback callback;
     struct nw_state_entry *next;
     uint32_t data_size;
     char data[];
 } nw_state_entry;
-
-typedef void (*nw_state_timeout_callback)(nw_state_entry *entry);
 
 # define NW_STATE_CACHE_NUM 14
 
@@ -32,7 +34,6 @@ typedef struct nw_state {
     uint32_t used;
     uint32_t id;
     struct ev_loop *loop;
-    nw_state_timeout_callback timeout_callback;
     nw_cache *caches[NW_STATE_CACHE_NUM];
 } nw_state;
 
@@ -43,8 +44,9 @@ typedef struct nw_state_iterator {
     nw_state_entry *next_entry;
 } nw_state_iterator;
 
-nw_state *nw_state_create(nw_state_timeout_callback timeout_callback);
-nw_state_entry *nw_state_add(nw_state *context, uint32_t size, double timeout);
+nw_state *nw_state_create(void);
+nw_state_entry *nw_state_add(nw_state *context, uint32_t size, \
+        double timeout, nw_state_callback callback);
 nw_state_entry *nw_state_get(nw_state *context, uint32_t id);
 int nw_state_mod(nw_state *context, uint32_t id, double timeout);
 int nw_state_del(nw_state *context, uint32_t id);

@@ -202,7 +202,19 @@ int nw_clt_start(nw_clt *clt)
 
     if (clt->ses.sock_type == SOCK_STREAM || clt->ses.sock_type == SOCK_SEQPACKET) {
         clt->connected = false;
-        return nw_ses_connect(&clt->ses, &clt->ses.peer_addr);
+        int ret = nw_ses_connect(&clt->ses, &clt->ses.peer_addr);
+        if (ret < 0) {
+            if (clt->type.on_close) {
+                ret = clt->type.on_close(&clt->ses);
+            }
+            nw_clt_close(clt);
+            if (ret > 0) {
+                nw_clt_start(clt);
+            } else {
+                reconnect_later(clt);
+            }
+        }
+        return 0;
     } else {
         clt->connected = true;
         set_socket_option(clt, clt->ses.sockfd);

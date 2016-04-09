@@ -32,7 +32,7 @@ void on_connect(nw_ses *ses, bool result)
     }
 }
 
-void on_close(nw_ses *ses)
+int on_close(nw_ses *ses)
 {
     printf("connection to: %s close\n", nw_sock_human_addr(&ses->peer_addr));
 }

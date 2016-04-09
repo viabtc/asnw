@@ -27,9 +27,13 @@ typedef struct nw_addr_t {
 
 # define NW_SOCKADDR(addr) ((struct sockaddr *)(&(addr)->in))
 # define NW_HUMAN_ADDR_SIZE 128
+# define NW_SOCK_IP_SIZE    INET6_ADDRSTRLEN
 
 char *nw_sock_human_addr(nw_addr_t *addr);
 char *nw_sock_human_addr_s(nw_addr_t *addr, char *dest);
+
+char *nw_sock_ip(nw_addr_t *addr);
+char *nw_sock_ip_s(nw_addr_t *addr, char *ip);
 
 int nw_sock_cfg_parse(const char *cfg, nw_addr_t *addr, int *sock_type);
 
