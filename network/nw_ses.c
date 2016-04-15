@@ -172,6 +172,14 @@ static void on_can_read(nw_ses *ses)
                         return;
                     }
                 }
+                int pkg_size = ret;
+                ret = ses->decode_pkg(ses, ses->read_buf->data, pkg_size);
+                if (ret < 0) {
+                    char errmsg[100];
+                    snprintf(errmsg, sizeof(errmsg), "decode msg error: %d", ret);
+                    ses->on_error(ses, errmsg);
+                    return;
+                }
                 ses->on_recv_pkg(ses, ses->read_buf->data, ret);
                 if (!ses->read_buf)
                     return;
@@ -219,6 +227,14 @@ static void on_can_read(nw_ses *ses)
                         ses->on_recv_fd(ses, fd);
                     }
                 } else {
+                    int pkg_size = ret;
+                    ret = ses->decode_pkg(ses, ses->read_buf->data, pkg_size);
+                    if (ret < 0) {
+                        char errmsg[100];
+                        snprintf(errmsg, sizeof(errmsg), "decode msg error: %d", ret);
+                        ses->on_error(ses, errmsg);
+                        return;
+                    }
                     ses->on_recv_pkg(ses, ses->read_buf->data, ret);
                     if (!ses->read_buf)
                         return;

@@ -108,6 +108,8 @@ static void on_error(nw_ses *ses, const char *msg)
     if (clt->type.on_error_msg) {
         clt->type.on_error_msg(ses, msg);
     }
+    if (ses->sock_type == SOCK_DGRAM)
+        return;
     int ret = 0;
     if (clt->type.on_close) {
         ret = clt->type.on_close(&clt->ses);
@@ -139,9 +141,9 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
 {
     nw_loop_init();
 
-    if (type->on_recv_pkg == NULL)
+    if (type->decode_pkg == NULL)
         return NULL;
-    if (cfg->sock_type == SOCK_STREAM && type->decode_pkg == NULL)
+    if (type->on_recv_pkg == NULL)
         return NULL;
 
     nw_clt *clt = malloc(sizeof(nw_clt));
