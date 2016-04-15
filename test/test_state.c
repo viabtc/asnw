@@ -9,25 +9,42 @@
 
 # include "nw_state.h"
 
+struct test_data {
+    char *str;
+};
+
 void on_timeout(nw_state_entry *entry)
 {
-    printf("%s\n", entry->data);
+    struct test_data *data = entry->data;
+    printf("on_timeout %s\n", data->str);
+}
+
+void on_release(nw_state_entry *entry)
+{
+    struct test_data *data = entry->data;
+    printf("on_release %s\n", data->str);
+    free(data->str);
 }
 
 int main(int argc, char *argv[])
 {
-    nw_state *state = nw_state_create(on_timeout);
+    struct nw_state_type type;
+    type.on_timeout = on_timeout;
+    type.on_release = on_release;
+
+    nw_state *state = nw_state_create(&type, sizeof(struct test_data));
     if (state == NULL) {
         error(1, errno, "nw_state_create fail");
     }
 
-    char *s = "hello world";
-    nw_state_entry *entry = nw_state_add(state, strlen(s) + 1, 1.0);
+    nw_state_entry *entry = nw_state_add(state, 1.0);
     if (entry == NULL) {
         error(1, errno, "nw_state_add fail");
     }
-    printf("id: %d, size: %u\n", entry->id, entry->data_size);
-    strcpy(entry->data, s);
+    printf("id: %d\n", entry->id);
+
+    struct test_data *data = entry->data;
+    data->str = strdup("hello world");
 
     entry = nw_state_get(state, entry->id);
     if (!entry) {
@@ -39,13 +56,15 @@ int main(int argc, char *argv[])
     nw_state_del(state, 1);
 
     for (int i = 0; i < 100; ++i) {
-        s = "abcdabcdabcdabcdabcdabcd1234567890";
-        entry = nw_state_add(state, strlen(s) + 1, 1.0);
+        entry = nw_state_add(state, 1.0);
         if (entry == NULL) {
             error(1, errno, "nw_state_add fail");
         }
-        strcpy(entry->data, s);
+
+        data = entry->data;
+        data->str = strdup("asdfghjkl");
     }
+
     printf("state count: %zu\n", nw_state_count(state));
     printf("state table_size: %u\n", state->table_size);
 
@@ -54,7 +73,8 @@ int main(int argc, char *argv[])
         error(1, errno, "nw_state_get_iterator fail");
     }
     while ((entry = nw_state_next(iter)) != NULL) {
-        printf("%u: %s\n", entry->id, entry->data);
+        data = entry->data;
+        printf("%u: %s\n", entry->id, data->str);
     }
     nw_state_iterator_release(iter);
 

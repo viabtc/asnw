@@ -10,64 +10,38 @@
 
 # define NW_STATE_HASH_TABLE_INIT_SIZE 64
 
-nw_state *nw_state_create(void)
+nw_state *nw_state_create(nw_state_type *type, uint32_t data_size)
 {
+    if (type->on_timeout == NULL)
+        return NULL;
+
     nw_loop_init();
     nw_state *context = malloc(sizeof(nw_state));
     if (context == NULL) {
         return NULL;
     }
     memset(context, 0, sizeof(nw_state));
+    context->loop = nw_default_loop;
+    context->type = *type;
+    context->data_size = data_size;
+    context->cache = nw_cache_create(sizeof(nw_state_entry) + data_size);
+    if (context->cache == NULL) {
+        free(context);
+        return NULL;
+    }
     context->table_size = NW_STATE_HASH_TABLE_INIT_SIZE;
     context->table_mask = context->table_size - 1;
     context->table = calloc(context->table_size, sizeof(nw_state_entry *));
     if (context->table == NULL) {
+        nw_cache_release(context->cache);
         free(context);
         return NULL;
-    }
-    context->loop = nw_default_loop;
-    for (int i = 0; i < NW_STATE_CACHE_NUM; ++i) {
-        context->caches[i] = nw_cache_create(2 << (i + 2));
-        if (context->caches[i] == NULL) {
-            nw_state_release(context);
-            return NULL;
-        }
     }
 
     return context;
 }
 
-static nw_cache *cache_choice(nw_state *context, size_t size)
-{
-    for (int i = 0; i < NW_STATE_CACHE_NUM; ++i) {
-        if (size < (2 << (i + 2))) {
-            return context->caches[i];
-        }
-    }
-    return NULL;
-}
-
-static void *cache_alloc(nw_state *context, uint32_t data_size)
-{
-    size_t real_size = sizeof(nw_state_entry) + data_size;
-    nw_cache *cache = cache_choice(context, real_size);
-    if (cache == NULL) {
-        return malloc(real_size);
-    }
-    return nw_cache_alloc(cache);
-}
-
-static void cache_free(nw_state *context, nw_state_entry *entry)
-{
-    size_t real_size = sizeof(nw_state_entry) + entry->data_size;
-    nw_cache *cache = cache_choice(context, real_size);
-    if (cache == NULL) {
-        free(entry);
-    }
-    nw_cache_free(cache, entry);
-}
-
-static int state_expand_if_needed(nw_state *context)
+static int expand_if_needed(nw_state *context)
 {
     if (context->used < context->table_size)
         return 0;
@@ -99,7 +73,14 @@ static int state_expand_if_needed(nw_state *context)
     return 0;
 }
 
-static int state_remove(nw_state *context, nw_state_entry *entry)
+static void state_release(nw_state *context, nw_state_entry *entry)
+{
+    if (context->type.on_release)
+        context->type.on_release(entry);
+    nw_cache_free(context->cache, entry);
+}
+
+static void state_remove(nw_state *context, nw_state_entry *entry)
 {
     uint32_t index = entry->id & context->table_mask;
     nw_state_entry *curr = context->table[index];
@@ -111,45 +92,42 @@ static int state_remove(nw_state *context, nw_state_entry *entry)
             } else {
                 context->table[index] = entry->next;
             }
-            cache_free(context, entry);
+            state_release(context, entry);
             context->used--;
-            return 1;
+            return;
         }
         prev = curr;
         curr = curr->next;
     }
-
-    return 0;
 }
 
 static void on_timeout(struct ev_loop *loop, ev_timer *ev, int events)
 {
     nw_state_entry *entry = (nw_state_entry *)ev;
-    entry->callback(entry);
     nw_state *context = entry->context;
+    context->type.on_timeout(entry);
     state_remove(context, entry);
 }
 
-nw_state_entry *nw_state_add(nw_state *context, uint32_t size, \
-        double timeout, nw_state_callback callback)
+nw_state_entry *nw_state_add(nw_state *context, double timeout)
 {
     if (context->used == UINT32_MAX)
         return NULL;
-    nw_state_entry *entry = cache_alloc(context, size);
+    nw_state_entry *entry = nw_cache_alloc(context->cache);
     if (entry == NULL) {
         return NULL;
     }
 
-    entry->id = ++context->id;
-    if (entry->id == 0)
-        entry->id = ++context->id;
-    entry->context = context;
-    entry->callback = callback;
-    entry->data_size = size;
     ev_timer_init(&entry->ev, on_timeout, timeout, 0);
     ev_timer_start(context->loop, &entry->ev);
+    entry->id = ++context->id_start;
+    if (entry->id == 0)
+        entry->id = ++context->id_start;
+    entry->context = context;
+    entry->data = ((void *)entry + sizeof(nw_state_entry));
+    memset(entry->data, 0, context->data_size);
 
-    state_expand_if_needed(context);
+    expand_if_needed(context);
     uint32_t index = entry->id & context->table_mask;
     entry->next = context->table[index];
     context->table[index] = entry;
@@ -207,16 +185,12 @@ void nw_state_release(nw_state *context)
         while (entry) {
             next = entry->next;
             ev_timer_stop(context->loop, &entry->ev);
-            cache_free(context, entry);
+            state_release(context, entry);
             entry = next;
         }
     }
+    nw_cache_release(context->cache);
     free(context->table);
-    for (int i = 0; i < NW_STATE_CACHE_NUM; ++i) {
-        if (context->caches[i]) {
-            nw_cache_release(context->caches[i]);
-        }
-    }
     free(context);
 }
 
