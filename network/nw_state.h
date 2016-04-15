@@ -16,8 +16,8 @@ typedef struct nw_state_entry {
     ev_timer ev;
     uint32_t id;
     void *context;
-    struct nw_state_entry *next;
     void *data;
+    struct nw_state_entry *next;
 } nw_state_entry;
 
 typedef struct nw_state_type {

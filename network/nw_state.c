@@ -43,10 +43,10 @@ nw_state *nw_state_create(nw_state_type *type, uint32_t data_size)
 
 static int expand_if_needed(nw_state *context)
 {
-    if (context->used < context->table_size)
+    if (context->used < context->table_size * 4)
         return 0;
 
-    uint32_t new_table_size = context->table_size * 2;
+    uint32_t new_table_size = context->table_size * 4;
     uint32_t new_table_mask = new_table_size - 1;
     nw_state_entry **new_table = calloc(new_table_size, sizeof(nw_state_entry *));
     if (new_table == NULL) {
@@ -117,7 +117,6 @@ nw_state_entry *nw_state_add(nw_state *context, double timeout)
     if (entry == NULL) {
         return NULL;
     }
-
     ev_timer_init(&entry->ev, on_timeout, timeout, 0);
     ev_timer_start(context->loop, &entry->ev);
     entry->id = ++context->id_start;
