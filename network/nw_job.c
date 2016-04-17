@@ -94,7 +94,7 @@ static void on_can_read(struct ev_loop *loop, ev_io *watcher, int events)
             job->type.on_finish(entry);
         if (job->type.on_cleanup)
             job->type.on_cleanup(entry);
-        free(entry);
+        nw_cache_free(job->cache, entry);
     }
 }
 
@@ -136,6 +136,11 @@ nw_job *nw_job_create(nw_job_type *type, int thread_count)
         nw_job_free(job);
         return NULL;
     }
+    job->cache = nw_cache_create(sizeof(nw_job_entry));
+    if (job->cache == NULL) {
+        nw_job_free(job);
+        return NULL;
+    }
     if (pipe(job->pipefd) != 0) {
         nw_job_free(job);
         return NULL;
@@ -171,12 +176,13 @@ nw_job *nw_job_create(nw_job_type *type, int thread_count)
 
 int nw_job_add(nw_job *job, uint32_t id, void *request)
 {
-    nw_job_entry *entry = malloc(sizeof(nw_job_entry));
+    nw_job_entry *entry = nw_cache_alloc(job->cache);
     if (entry == NULL)
         return -1;
     memset(entry, 0, sizeof(nw_job_entry));
     entry->id = id;
     entry->request = request;
+
     pthread_mutex_lock(&job->lock);
     if (job->request_tail) {
         entry->prev = job->request_tail;

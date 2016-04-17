@@ -9,7 +9,9 @@
 # include <stdint.h>
 # include <stdbool.h>
 # include <pthread.h>
+
 # include "nw_evt.h"
+# include "nw_buf.h"
 
 typedef struct nw_job_entry {
     uint32_t id;
@@ -32,12 +34,13 @@ typedef struct nw_job {
     nw_job_type type;
     struct ev_loop *loop;
     int pipefd[2];
-    bool shutdown;
     pthread_mutex_t lock;
     pthread_cond_t notify;
+    nw_cache *cache;
     int thread_count;
     int thread_start;
     pthread_t *threads;
+    bool shutdown;
     nw_job_entry *request_head;
     nw_job_entry *request_tail;
     int request_count;
