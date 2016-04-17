@@ -10,7 +10,8 @@ Network including the following modules:
 - `nw_timer` : timer, call a function after specify time, repeat or not repeat
 - `nw_svr`   : server implement, one server can bind multi address in different sock type
 - `nw_clt`   : client implement, auto reconnect
-- `ne_state` : state machine with timeout
+- `nw_state` : state machine with timeout
+- `nw_job`   : thread pool
 
 ### example
 - `echo_server` : a single process server
