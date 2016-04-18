@@ -109,19 +109,36 @@ static void on_timeout(struct ev_loop *loop, ev_timer *ev, int events)
     state_remove(context, entry);
 }
 
-nw_state_entry *nw_state_add(nw_state *context, double timeout)
+static uint32_t get_available_id(nw_state *context)
 {
+    while (true) {
+        context->id_start++;
+        if (context->id_start == 0)
+            context->id_start++;
+        if (nw_state_get(context, context->id_start) == NULL)
+            break;
+    }
+    return context->id_start;
+}
+
+nw_state_entry *nw_state_add(nw_state *context, double timeout, uint32_t id)
+{
+    if (id != 0 && nw_state_get(context, id) != NULL)
+        return NULL;
     if (context->used == UINT32_MAX)
         return NULL;
     nw_state_entry *entry = nw_cache_alloc(context->cache);
     if (entry == NULL) {
         return NULL;
     }
+
+    if (id != 0) {
+        entry->id = id;
+    } else {
+        entry->id = get_available_id(context);
+    }
     ev_timer_init(&entry->ev, on_timeout, timeout, 0);
     ev_timer_start(context->loop, &entry->ev);
-    entry->id = ++context->id_start;
-    if (entry->id == 0)
-        entry->id = ++context->id_start;
     entry->context = context;
     entry->data = ((void *)entry + sizeof(nw_state_entry));
     memset(entry->data, 0, context->data_size);

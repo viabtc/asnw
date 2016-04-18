@@ -21,8 +21,8 @@ typedef struct nw_state_entry {
 } nw_state_entry;
 
 typedef struct nw_state_type {
-    void (*on_timeout)(struct nw_state_entry *entry);
-    void (*on_release)(struct nw_state_entry *entry);
+    void (*on_timeout)(nw_state_entry *entry);
+    void (*on_release)(nw_state_entry *entry);
 } nw_state_type;
 
 typedef struct nw_state {
@@ -45,7 +45,7 @@ typedef struct nw_state_iterator {
 } nw_state_iterator;
 
 nw_state *nw_state_create(nw_state_type *type, uint32_t data_size);
-nw_state_entry *nw_state_add(nw_state *context, double timeout);
+nw_state_entry *nw_state_add(nw_state *context, double timeout, uint32_t id);
 nw_state_entry *nw_state_get(nw_state *context, uint32_t id);
 int nw_state_mod(nw_state *context, uint32_t id, double timeout);
 int nw_state_del(nw_state *context, uint32_t id);
