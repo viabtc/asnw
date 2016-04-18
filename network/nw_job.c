@@ -156,6 +156,7 @@ nw_job *nw_job_create(nw_job_type *type, int thread_count)
             nw_job_release(job);
             return NULL;
         }
+        memset(arg, 0, sizeof(struct thread_arg));
         arg->job = job;
         if (job->type.on_init) {
             arg->privdata = job->type.on_init();
