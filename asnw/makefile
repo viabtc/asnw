@@ -5,7 +5,7 @@ CFLAGS  := -Wall -Wno-strict-aliasing -Wno-uninitialized -g -rdynamic -std=gnu11
 
 .PHONY : all clean install 
 
-TARGET  := libnetwork.a
+TARGET  := libasnw.a
 
 all : $(TARGET)
 
