@@ -1,4 +1,4 @@
-# Network
+# ASNW: asynchronous network
 A high performance asynchronous network programming library based on libev and in C.
 
 Network including the following modules:
