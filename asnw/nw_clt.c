@@ -141,6 +141,8 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
 {
     nw_loop_init();
 
+    if (cfg->max_pkg_size == 0)
+        return NULL;
     if (type->decode_pkg == NULL)
         return NULL;
     if (type->on_recv_pkg == NULL)

@@ -190,6 +190,8 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
 
     if (cfg->bind_count == 0) 
         return NULL;
+    if (cfg->max_pkg_size == 0)
+        return NULL;
     if (type->decode_pkg == NULL)
         return NULL;
     if (type->on_recv_pkg == NULL)
