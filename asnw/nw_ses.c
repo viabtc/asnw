@@ -93,6 +93,8 @@ static int nw_write_packet(nw_ses *ses, const void *data, size_t size)
 
 static void on_can_read(nw_ses *ses)
 {
+    if (ses->sockfd < 0)
+        return;
     if (ses->read_buf == NULL) {
         ses->read_buf = nw_buf_alloc(ses->pool);
         if (ses->read_buf == NULL) {
@@ -249,6 +251,9 @@ static void on_can_read(nw_ses *ses)
 
 static void on_can_write(nw_ses *ses)
 {
+    if (ses->sockfd < 0)
+        return;
+
     while (ses->write_buf->count > 0) {
         nw_buf *buf = ses->write_buf->head;
         size_t size = nw_buf_size(buf);
@@ -284,6 +289,9 @@ static void on_can_write(nw_ses *ses)
 
 static void on_can_accept(nw_ses *ses)
 {
+    if (ses->sockfd < 0)
+        return;
+
     while (true) {
         nw_addr_t peer_addr;
         memset(&peer_addr, 0, sizeof(peer_addr));
@@ -312,6 +320,9 @@ static void on_can_accept(nw_ses *ses)
 
 static void on_can_connect(nw_ses *ses)
 {
+    if (ses->sockfd < 0)
+        return;
+
     errno = nw_sock_errno(ses->sockfd);
     if (errno != 0) {
         ses->on_connect(ses, false);
