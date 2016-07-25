@@ -322,15 +322,13 @@ static void on_can_connect(nw_ses *ses)
 {
     if (ses->sockfd < 0)
         return;
-
     errno = nw_sock_errno(ses->sockfd);
     if (errno != 0) {
         ses->on_connect(ses, false);
         return;
     }
-
-    ses->on_connect(ses, true);
     watch_read(ses);
+    ses->on_connect(ses, true);
 }
 
 static void libev_on_read_write_evt(struct ev_loop *loop, ev_io *watcher, int events)
@@ -378,8 +376,8 @@ int nw_ses_connect(nw_ses *ses, nw_addr_t *addr)
 {
     int ret = connect(ses->sockfd, NW_SOCKADDR(addr), addr->addrlen);
     if (ret == 0) {
-        ses->on_connect(ses, true);
         watch_read(ses);
+        ses->on_connect(ses, true);
         return 0;
     }
     if (errno == EINPROGRESS) {

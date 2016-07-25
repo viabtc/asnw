@@ -152,13 +152,19 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
     memset(clt, 0, sizeof(nw_clt));
     clt->type = *type;
     clt->reconnect_timeout = cfg->reconnect_timeout  == 0 ? 1.0 : cfg->reconnect_timeout;
-    clt->buf_pool = nw_buf_pool_create(cfg->max_pkg_size);
+    if (cfg->buf_pool) {
+        clt->custom_buf_pool = true;
+        clt->buf_pool = cfg->buf_pool;
+    } else {
+        clt->custom_buf_pool = false;
+        clt->buf_pool = nw_buf_pool_create(cfg->max_pkg_size);
+        if (clt->buf_pool == NULL) {
+            nw_clt_release(clt);
+            return NULL;
+        }
+    }
     clt->read_mem = cfg->read_mem;
     clt->write_mem = cfg->write_mem;
-    if (clt->buf_pool == NULL) {
-        nw_clt_release(clt);
-        return NULL;
-    }
 
     nw_addr_t *host_addr = malloc(sizeof(nw_addr_t));
     if (host_addr == NULL) {
@@ -241,7 +247,7 @@ void nw_clt_release(nw_clt *clt)
     if (clt->ses.write_buf) {
         nw_ses_release(&clt->ses);
     }
-    if (clt->buf_pool) {
+    if (!clt->custom_buf_pool && clt->buf_pool) {
         nw_buf_pool_release(clt->buf_pool);
     }
     free(clt->ses.host_addr);
