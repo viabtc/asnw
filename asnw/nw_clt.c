@@ -78,6 +78,15 @@ static void on_recv_fd(nw_ses *ses, int fd)
     close(fd);
 }
 
+static int clt_close(nw_clt *clt)
+{
+    if (nw_timer_active(&clt->timer)) {
+        nw_timer_stop(&clt->timer);
+    }
+    clt->connected = false;
+    return nw_ses_close(&clt->ses);
+}
+
 static void on_connect(nw_ses *ses, bool result)
 {
     nw_clt *clt = (nw_clt *)ses;
@@ -93,7 +102,7 @@ static void on_connect(nw_ses *ses, bool result)
         if (clt->type.on_close) {
             ret = clt->type.on_close(&clt->ses);
         }
-        nw_clt_close(clt);
+        clt_close(clt);
         if (ret > 0) {
             nw_clt_start(clt);
         } else {
@@ -114,7 +123,7 @@ static void on_error(nw_ses *ses, const char *msg)
     if (clt->type.on_close) {
         ret = clt->type.on_close(&clt->ses);
     }
-    nw_clt_close(clt);
+    clt_close(clt);
     if (ret > 0) {
         nw_clt_start(clt);
     } else {
@@ -129,7 +138,7 @@ static void on_close(nw_ses *ses)
     if (clt->type.on_close) {
         ret = clt->type.on_close(&clt->ses);
     }
-    nw_clt_close(clt);
+    clt_close(clt);
     if (ret > 0) {
         nw_clt_start(clt);
     } else {
@@ -217,7 +226,7 @@ int nw_clt_start(nw_clt *clt)
             if (clt->type.on_close) {
                 ret = clt->type.on_close(&clt->ses);
             }
-            nw_clt_close(clt);
+            clt_close(clt);
             if (ret > 0) {
                 nw_clt_start(clt);
             } else {
@@ -235,11 +244,10 @@ int nw_clt_start(nw_clt *clt)
 
 int nw_clt_close(nw_clt *clt)
 {
-    if (nw_timer_active(&clt->timer)) {
-        nw_timer_stop(&clt->timer);
+    if (clt->type.on_close) {
+        clt->type.on_close(&clt->ses);
     }
-    clt->connected = false;
-    return nw_ses_close(&clt->ses);
+    return clt_close(clt);
 }
 
 void nw_clt_release(nw_clt *clt)
