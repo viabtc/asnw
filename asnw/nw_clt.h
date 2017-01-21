@@ -19,6 +19,7 @@ typedef struct nw_clt_cfg {
     nw_addr_t addr;
     int sock_type;
     uint32_t max_pkg_size;
+    uint32_t buf_limit;
     uint32_t read_mem;
     uint32_t write_mem;
     double reconnect_timeout;

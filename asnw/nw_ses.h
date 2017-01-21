@@ -53,7 +53,7 @@ int nw_ses_stop(nw_ses *ses);
 int nw_ses_send(nw_ses *ses, const void *data, size_t size);
 int nw_ses_send_fd(nw_ses *ses, int fd);
 
-int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, int ses_type);
+int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, uint32_t buf_limit, int ses_type);
 int nw_ses_close(nw_ses *ses);
 int nw_ses_release(nw_ses *ses);
 

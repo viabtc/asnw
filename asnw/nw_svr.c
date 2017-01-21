@@ -113,7 +113,7 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
         return -1;
     }
     memset(clt, 0, sizeof(nw_ses));
-    if (nw_ses_init(clt, nw_default_loop, svr->buf_pool, NW_SES_TYPE_COMMON) < 0) {
+    if (nw_ses_init(clt, nw_default_loop, svr->buf_pool, svr->buf_limit, NW_SES_TYPE_COMMON) < 0) {
         nw_cache_free(svr->clt_cache, clt);
         if (privdata) {
             svr->type.on_privdata_free(svr, privdata);
@@ -220,6 +220,7 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
         nw_svr_free(svr);
         return NULL;
     }
+    svr->buf_limit = cfg->buf_limit;
     svr->read_mem = cfg->read_mem;
     svr->write_mem = cfg->write_mem;
     svr->privdata = privdata;
@@ -237,7 +238,7 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
             return NULL;
         }
         memcpy(host_addr, &cfg->bind_arr[i].addr, sizeof(nw_addr_t));
-        if (nw_ses_init(ses, nw_default_loop, svr->buf_pool, NW_SES_TYPE_SERVER) < 0) {
+        if (nw_ses_init(ses, nw_default_loop, svr->buf_pool, svr->buf_limit, NW_SES_TYPE_SERVER) < 0) {
             free(host_addr);
             nw_svr_free(svr);
             return NULL;

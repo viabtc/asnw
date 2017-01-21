@@ -169,7 +169,7 @@ static void on_can_read(nw_ses *ses)
                         break;
                     } else {
                         char errmsg[100];
-                        snprintf(errmsg, sizeof(errmsg), "recvfrom error: %d", ret);
+                        snprintf(errmsg, sizeof(errmsg), "recvfrom error: %s", strerror(errno));
                         ses->on_error(ses, errmsg);
                         return;
                     }
@@ -213,7 +213,7 @@ static void on_can_read(nw_ses *ses)
                         break;
                     } else {
                         char errmsg[100];
-                        snprintf(errmsg, sizeof(errmsg), "recvmsg error: %d", ret);
+                        snprintf(errmsg, sizeof(errmsg), "recvmsg error: %s", strerror(errno));
                         ses->on_error(ses, errmsg);
                         return;
                     }
@@ -483,8 +483,9 @@ int nw_ses_send(nw_ses *ses, const void *data, size_t size)
 
 int nw_ses_send_fd(nw_ses *ses, int fd)
 {
-    if (ses->sock_type != SOCK_SEQPACKET)
+    if (ses->sockfd < 0 || ses->sock_type != SOCK_SEQPACKET) {
         return -1;
+    }
 
     struct msghdr msg;
     struct iovec io;
@@ -507,13 +508,13 @@ int nw_ses_send_fd(nw_ses *ses, int fd)
     return sendmsg(ses->sockfd, &msg, MSG_EOR);
 }
 
-int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, int ses_type)
+int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, uint32_t buf_limit, int ses_type)
 {
     memset(ses, 0, sizeof(nw_ses));
     ses->loop = loop;
     ses->ses_type = ses_type;
     ses->pool = pool;
-    ses->write_buf = nw_buf_list_create(pool);
+    ses->write_buf = nw_buf_list_create(pool, buf_limit);
     if (ses->write_buf == NULL) {
         return -1;
     }
@@ -525,7 +526,7 @@ int nw_ses_close(nw_ses *ses)
 {
     watch_stop(ses);
     ses->id = 0;
-    if (ses->sockfd >=0) {
+    if (ses->sockfd >= 0) {
         close(ses->sockfd);
         ses->sockfd = -1;
     }

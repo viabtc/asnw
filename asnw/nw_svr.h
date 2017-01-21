@@ -22,6 +22,7 @@ typedef struct nw_svr_cfg {
     uint32_t bind_count;
     nw_svr_bind *bind_arr;
     uint32_t max_pkg_size;
+    uint32_t buf_limit;
     uint32_t read_mem;
     uint32_t write_mem;
 } nw_svr_cfg;
@@ -47,6 +48,7 @@ typedef struct nw_svr {
     nw_ses *clt_list_head;
     nw_ses *clt_list_tail;
     uint32_t clt_count;
+    uint32_t buf_limit;
     uint32_t read_mem;
     uint32_t write_mem;
     uint64_t id_start;

@@ -28,6 +28,7 @@ typedef struct nw_buf_pool {
 typedef struct nw_buf_list {
     nw_buf_pool *pool;
     uint32_t count;
+    uint32_t limit;
     nw_buf *head;
     nw_buf *tail;
 } nw_buf_list;
@@ -50,7 +51,7 @@ nw_buf *nw_buf_alloc(nw_buf_pool *pool);
 void nw_buf_free(nw_buf_pool *pool, nw_buf *buf);
 void nw_buf_pool_release(nw_buf_pool *pool);
 
-nw_buf_list *nw_buf_list_create(nw_buf_pool *pool);
+nw_buf_list *nw_buf_list_create(nw_buf_pool *pool, uint32_t limit);
 size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t len);
 size_t nw_buf_list_append(nw_buf_list *list, const void *data, size_t len);
 void nw_buf_list_shift(nw_buf_list *list);

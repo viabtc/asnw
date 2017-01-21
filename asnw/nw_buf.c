@@ -107,13 +107,14 @@ void nw_buf_pool_release(nw_buf_pool *pool)
     free(pool);
 }
 
-nw_buf_list *nw_buf_list_create(nw_buf_pool *pool)
+nw_buf_list *nw_buf_list_create(nw_buf_pool *pool, uint32_t limit)
 {
     nw_buf_list *list = malloc(sizeof(nw_buf_list));
     if (list == NULL)
         return NULL;
     list->pool = pool;
     list->count = 0;
+    list->limit = limit;
     list->head = NULL;
     list->tail = NULL;
 
@@ -132,6 +133,8 @@ size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t len)
     }
 
     while (left) {
+        if (list->limit && list->count >= list->limit)
+            return len - left;
         nw_buf *buf = nw_buf_alloc(list->pool);
         if (buf == NULL)
             return len - left;
@@ -151,11 +154,15 @@ size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t len)
 
 size_t nw_buf_list_append(nw_buf_list *list, const void *data, size_t len)
 {
+    if (list->limit && list->count >= list->limit)
+        return 0;
     nw_buf *buf = nw_buf_alloc(list->pool);
     if (buf == NULL)
         return 0;
-    if (len > buf->size)
+    if (len > buf->size) {
+        nw_buf_free(list->pool, buf);
         return 0;
+    }
     nw_buf_write(buf, data, len);
     if (list->head == NULL)
         list->head = buf;

@@ -184,7 +184,7 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
     host_addr->family = cfg->addr.family;
     host_addr->addrlen = cfg->addr.addrlen;
 
-    if (nw_ses_init(&clt->ses, nw_default_loop, clt->buf_pool, NW_SES_TYPE_CLIENT) < 0) {
+    if (nw_ses_init(&clt->ses, nw_default_loop, clt->buf_pool, cfg->buf_limit, NW_SES_TYPE_CLIENT) < 0) {
         nw_clt_release(clt);
         return NULL;
     }
