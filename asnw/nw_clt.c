@@ -61,7 +61,7 @@ static void generate_random_path(char *path, size_t size, char *prefix, char *su
     snprintf(path, size, "%s/%s%s%s", P_tmpdir, prefix, randname, suffix);
 }
 
-static void on_timeout(nw_timer *timer, void *privdata)
+static void on_reconnect_timeout(nw_timer *timer, void *privdata)
 {
     nw_clt *clt = (nw_clt *)privdata;
     nw_clt_start(clt);
@@ -69,7 +69,22 @@ static void on_timeout(nw_timer *timer, void *privdata)
 
 static void reconnect_later(nw_clt *clt)
 {
-    nw_timer_set(&clt->timer, clt->reconnect_timeout, false, on_timeout, clt);
+    nw_timer_set(&clt->timer, clt->reconnect_timeout, false, on_reconnect_timeout, clt);
+    nw_timer_start(&clt->timer);
+}
+
+static void on_connect_timeout(nw_timer *timer, void *privdata)
+{
+    nw_clt *clt = (nw_clt *)privdata;
+    if (!clt->on_connect_called) {
+        nw_clt_close(clt);
+        nw_clt_start(clt);
+    }
+}
+
+static void watch_connect(nw_clt *clt)
+{
+    nw_timer_set(&clt->timer, clt->reconnect_timeout, false, on_connect_timeout, clt);
     nw_timer_start(&clt->timer);
 }
 
@@ -90,6 +105,7 @@ static int clt_close(nw_clt *clt)
 static void on_connect(nw_ses *ses, bool result)
 {
     nw_clt *clt = (nw_clt *)ses;
+    clt->on_connect_called = true;
     if (clt->type.on_connect) {
         clt->type.on_connect(ses, result);
     }
@@ -221,6 +237,7 @@ int nw_clt_start(nw_clt *clt)
 
     if (clt->ses.sock_type == SOCK_STREAM || clt->ses.sock_type == SOCK_SEQPACKET) {
         clt->connected = false;
+        clt->on_connect_called = false;
         int ret = nw_ses_connect(&clt->ses, &clt->ses.peer_addr);
         if (ret < 0) {
             if (clt->type.on_close) {
@@ -232,6 +249,9 @@ int nw_clt_start(nw_clt *clt)
             } else {
                 reconnect_later(clt);
             }
+        }
+        if (!clt->on_connect_called) {
+            watch_connect(clt);
         }
         return 0;
     } else {
