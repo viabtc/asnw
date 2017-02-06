@@ -13,19 +13,43 @@
 # include "nw_evt.h"
 # include "nw_buf.h"
 
+/* nw_job is a thread pool object, all the thread is workers.
+ * it include an job queue, you can add job to the queue,
+ * workers will get job from queue and do the job. */
+
 typedef struct nw_job_entry {
     uint32_t id;
+    /* request data */
     void *request;
+    /* result data */
     void *reply;
     struct nw_job_entry *next;
     struct nw_job_entry *prev;
 } nw_job_entry;
 
 typedef struct nw_job_type {
+    /* optional
+     *
+     * if set, the return value will be passed to ob_job
+     * as the privdata, and the on_release also shoud be
+     * set, called in main process */
     void *(*on_init)(void);
+    /* must
+     *
+     * called when get a new job, in thead worker */
     void (*on_job)(nw_job_entry *entry, void *privdata);
+    /* optional
+     *
+     * called when a job is finished, in main process */
     void (*on_finish)(nw_job_entry *entry);
+    /* optional
+     *
+     * called when after a job is finished, in main process
+     * used to free the request and reply data, in main process */
     void (*on_cleanup)(nw_job_entry *entry);
+    /* optional
+     *
+     * called when the nw_job is released */
     void (*on_release)(void *privdata);
 } nw_job_type;
 
