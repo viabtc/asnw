@@ -20,7 +20,7 @@
 
 enum {
     NW_SES_TYPE_COMMON, /* stream connection */
-    NW_SES_TYPE_CLIENT, /* client side */
+    NW_SES_TYPE_CLIENT, /* clinet side */
     NW_SES_TYPE_SERVER, /* server side */
 };
 
