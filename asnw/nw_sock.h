@@ -84,5 +84,8 @@ int nw_sock_set_no_delay(int sockfd);
 /* set sockfd reuse addr */
 int nw_sock_set_reuse_addr(int sockfd);
 
+/* set socket linger */
+int nw_sock_set_no_linger(int sockfd);
+
 # endif
 

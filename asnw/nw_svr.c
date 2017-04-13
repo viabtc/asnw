@@ -22,6 +22,12 @@ static int create_socket(int family, int sock_type)
         close(sockfd);
         return -1;
     }
+    if (sock_type == SOCK_STREAM) {
+        if (nw_sock_set_no_linger(sockfd) < 0) {
+            close(sockfd);
+            return -1;
+        }
+    }
     if (sock_type == SOCK_STREAM && (family == AF_INET || family == AF_INET6)) {
         if (nw_sock_set_no_delay(sockfd) < 0) {
             close(sockfd);
@@ -98,6 +104,14 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
     set_socket_option(svr, sockfd);
     if (nw_sock_set_nonblock(sockfd) < 0) {
         return -1;
+    }
+    if (nw_sock_set_no_linger(sockfd) < 0) {
+        return -1;
+    }
+    if (ses->host_addr->family == AF_INET || ses->host_addr->family == AF_INET6) {
+        if (nw_sock_set_no_delay(sockfd) < 0) {
+            return -1;
+        }
     }
 
     void *privdata = NULL;
@@ -315,8 +329,6 @@ void nw_svr_release(nw_svr *svr)
 
 void nw_svr_close_clt(nw_svr *svr, nw_ses *ses)
 {
-    if (ses->ses_type != NW_SES_TYPE_COMMON)
-       return;
     if (svr->type.on_connection_close) {
         svr->type.on_connection_close(ses);
     }

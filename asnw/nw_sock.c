@@ -274,3 +274,11 @@ int nw_sock_set_reuse_addr(int sockfd)
     return 0;
 }
 
+int nw_sock_set_no_linger(int sockfd)
+{
+    struct linger slinger = { .l_onoff = 1, .l_linger = 0 };
+    if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &slinger, sizeof(slinger)) != 0)
+        return -1;
+    return 0;
+}
+
