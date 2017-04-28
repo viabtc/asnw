@@ -95,6 +95,13 @@ char *nw_sock_ip_s(nw_addr_t *addr, char *ip)
     return ip;
 }
 
+int nw_sock_set_mode(nw_addr_t *addr, mode_t mode)
+{
+    if (addr->family != AF_UNIX)
+        return 0;
+    return chmod(addr->un.sun_path, mode);
+}
+
 int nw_sock_peer_addr(int sockfd, nw_addr_t *addr)
 {
     addr->addrlen = sizeof(addr->un);
@@ -270,14 +277,6 @@ int nw_sock_set_reuse_addr(int sockfd)
 {
     int val = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)) != 0)
-        return -1;
-    return 0;
-}
-
-int nw_sock_set_no_linger(int sockfd)
-{
-    struct linger slinger = { .l_onoff = 1, .l_linger = 0 };
-    if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &slinger, sizeof(slinger)) != 0)
         return -1;
     return 0;
 }
