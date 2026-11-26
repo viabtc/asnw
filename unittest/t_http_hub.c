@@ -29,6 +29,10 @@ static int later_count;
 
 /* one job pool per worker thread, made in on_thread_start */
 static __thread nw_job *job;
+/* and one of the main thread, which every worker adds jobs to */
+static nw_job *shared_job;
+static pthread_t main_thread;
+static int shared_done;
 
 # define ADD(var) __sync_fetch_and_add(&(var), 1)
 # define GET(var) __sync_fetch_and_add(&(var), 0)
@@ -78,6 +82,24 @@ static void on_job_cleanup(nw_job_entry *entry)
     free(entry->request);
 }
 
+/* the shared pool: back on the main thread, the answer crosses over to the
+ * worker of the connection */
+static void on_shared_finish(nw_job_entry *entry)
+{
+    struct work *work = entry->request;
+    if (!pthread_equal(pthread_self(), main_thread))
+        ADD(wrong);
+    char body[64];
+    nw_http_response rsp;
+    memset(&rsp, 0, sizeof(rsp));
+    rsp.status = 200;
+    rsp.body = body;
+    rsp.body_size = snprintf(body, sizeof(body), "shared %d", work->value);
+    if (nw_http_reply_id(front, entry->id, &rsp) != 0)
+        ADD(wrong);
+    ADD(shared_done);
+}
+
 static void on_request(nw_ses *ses, nw_http_request *req)
 {
     check_thread(ses);
@@ -98,6 +120,11 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         work->svr = svr;
         work->value = atoi(req->query);
         CHECK_EQ(nw_job_add(job, ses->id, work), 0);
+    } else if (strcmp(req->path, "/shared") == 0) {
+        struct work *work = malloc(sizeof(struct work));
+        work->svr = svr;
+        work->value = atoi(req->query);
+        CHECK_EQ(nw_job_add(shared_job, ses->id, work), 0);
     } else if (strcmp(req->path, "/echo") == 0) {
         CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", req->body, req->body_size), 0);
     } else {
@@ -201,6 +228,15 @@ int main(void)
     CHECK_EQ(GET(thread_stops), THREADS - 1);
     fail_start_at = -1;
     thread_starts = thread_stops = 0;
+
+    main_thread = pthread_self();
+    nw_job_type shared_type;
+    memset(&shared_type, 0, sizeof(shared_type));
+    shared_type.on_job = on_job;
+    shared_type.on_finish = on_shared_finish;
+    shared_type.on_cleanup = on_job_cleanup;
+    shared_job = nw_job_create(&shared_type, 3);
+    CHECK(shared_job != NULL);
 
     front = create(THREADS);
     CHECK(front != NULL);
@@ -308,6 +344,22 @@ int main(void)
     }
     CHECK_EQ(GET(jobs_done), ROUNDS / 2 * (CLIENTS - 2));
 
+    /* one pool for all the workers: they add the jobs, the main thread
+     * gets the results and answers by id */
+    for (int n = 0; n < ROUNDS; ++n) {
+        for (int i = 2; i < CLIENTS; ++i) {
+            snprintf(text, sizeof(text), "/shared?%d", n * 100 + i);
+            get(clients[i], text, NULL);
+        }
+        for (int i = 2; i < CLIENTS; ++i) {
+            CHECK(client_read(clients[i], &rsp, false, 10.0));
+            CHECK_EQ(rsp.status, 200);
+            snprintf(text, sizeof(text), "shared %d", (n * 100 + i) * 2);
+            CHECK(strcmp(rsp.body, text) == 0);
+        }
+    }
+    CHECK_EQ(GET(shared_done), ROUNDS * (CLIENTS - 2));
+
     /* a refused request is refused on the worker too */
     client_puts(clients[3], "BROKEN\r\n\r\n");
     CHECK(client_read(clients[3], &rsp, false, 10.0));
@@ -335,6 +387,8 @@ int main(void)
     CHECK_EQ(GET(closes), 1);
     client_free(one);
 
+    /* after the servers: no worker is left to add a job */
+    nw_job_release(shared_job);
     CHECK_EQ(GET(wrong), 0);
     nw_loop_release();
     return 0;

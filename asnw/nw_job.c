@@ -65,15 +65,24 @@ static void on_wakeup(struct ev_loop *loop, ev_async *watcher, int events)
     job->reply_tail = NULL;
     pthread_mutex_unlock(&job->reply_lock);
 
+    nw_job_entry *done = entry;
     while (entry) {
-        nw_job_entry *next = entry->next;
         if (job->type.on_finish)
             job->type.on_finish(entry);
         if (job->type.on_cleanup)
             job->type.on_cleanup(entry);
-        nw_cache_free(job->cache, entry);
-        entry = next;
+        entry = entry->next;
     }
+
+    /* the entries go back to the cache, which nw_job_add takes them from
+     * on any thread: under the lock, and once for all of them */
+    pthread_mutex_lock(&job->request_lock);
+    while (done) {
+        nw_job_entry *next = done->next;
+        nw_cache_free(job->cache, done);
+        done = next;
+    }
+    pthread_mutex_unlock(&job->request_lock);
 }
 
 static void nw_job_free(nw_job *job)
@@ -175,14 +184,16 @@ nw_job *nw_job_create(nw_job_type *type, int thread_count)
 
 int nw_job_add(nw_job *job, uint64_t id, void *request)
 {
+    /* any thread may be here: the cache is used under the lock as well */
+    pthread_mutex_lock(&job->request_lock);
     nw_job_entry *entry = nw_cache_alloc(job->cache);
-    if (entry == NULL)
+    if (entry == NULL) {
+        pthread_mutex_unlock(&job->request_lock);
         return -1;
+    }
     memset(entry, 0, sizeof(nw_job_entry));
     entry->id = id;
     entry->request = request;
-
-    pthread_mutex_lock(&job->request_lock);
     if (job->request_tail) {
         job->request_tail->next = entry;
     } else {

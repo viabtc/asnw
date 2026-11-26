@@ -18,13 +18,20 @@
  * database query, a disk read, heavy computation.
  *
  * the life of a job:
- *   loop thread     nw_job_add(job, id, request)
+ *   any thread      nw_job_add(job, id, request)
  *   worker thread   on_job(entry, privdata)      do the work, set entry->reply
  *   loop thread     on_finish(entry)             use the result
  *   loop thread     on_cleanup(entry)            free request and reply
  *
  * jobs are started in the order they were added, but with more than one
  * worker they may finish in any order.
+ *
+ * the loop thread is the thread that created the pool. a program with
+ * several loop threads (a nw_hub) can give each thread a pool of its own,
+ * or share one: create it on the main thread and call nw_job_add from the
+ * others. on_finish then runs on the main thread, which answers by id
+ * (nw_hub_send, nw_http_reply_id ...) and must not touch a connection of
+ * another thread in any other way.
  *
  * only on_job runs on a worker thread, and the same on_job runs on several
  * threads at once: it must not touch anything else of asnw (no nw_ses_send,
@@ -103,7 +110,8 @@ typedef struct nw_job {
 nw_job *nw_job_create(nw_job_type *type, int thread_count);
 
 /* queue a job. id and request are handed to the callbacks untouched.
- * return 0, or -1 if out of memory. call it from the loop thread only.
+ * return 0, or -1 if out of memory. it may be called from any thread;
+ * on_finish and on_cleanup run on the thread that created the pool.
  * the queue has no upper bound: if jobs are added faster than the workers
  * finish them, memory grows */
 int nw_job_add(nw_job *job, uint64_t id, void *request);
@@ -112,7 +120,8 @@ int nw_job_add(nw_job *job, uint64_t id, void *request);
  * processed right now are done. jobs still queued are not run, and results
  * not delivered yet are not passed to on_finish; on_cleanup is called for
  * each of them so that request and reply can be freed. call it from the
- * loop thread, not from a callback of this pool */
+ * loop thread, not from a callback of this pool, and only when no other
+ * thread can call nw_job_add any more (release the hub first) */
 void nw_job_release(nw_job *job);
 
 # endif
