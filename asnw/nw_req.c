@@ -1,5 +1,5 @@
 /*
- * Description: a small http client: GET a url without blocking the loop
+ * Description: a small http client: GET or POST without blocking the loop
  *     History: yang@haipo.me, 2026/11/26, create
  */
 
@@ -511,8 +511,10 @@ static int pool_init(void)
 }
 
 /* "http://host[:port][/path][?query]" into what the worker needs: the
- * host and port to connect to, and the text of the request */
-static int parse_url(const char *url, struct nw_req *req)
+ * host and port to connect to, and the request as it is sent, with its
+ * body if there is one (content_type is NULL for a request without) */
+static int build_request(struct nw_req *req, const char *method, const char *url,
+        const char *content_type, const void *body, size_t size)
 {
     size_t url_len = strlen(url);
     if (url_len >= NW_REQ_URL_MAX || strncasecmp(url, "http://", 7) != 0)
@@ -559,8 +561,21 @@ static int parse_url(const char *url, struct nw_req *req)
             return -1;
     }
 
+    char about_body[160] = "";
+    if (content_type) {
+        /* a line of the head: it must not bring lines of its own */
+        size_t type_len = strlen(content_type);
+        if (type_len == 0 || type_len > 100)
+            return -1;
+        for (size_t i = 0; i < type_len; ++i) {
+            if ((unsigned char)content_type[i] < ' ' || content_type[i] == 0x7f)
+                return -1;
+        }
+        snprintf(about_body, sizeof(about_body), "Content-Type: %s\r\nContent-Length: %zu\r\n", content_type, size);
+    }
+
     req->host = strndup(host, host_len);
-    req->text = malloc(url_len + host_len + 128);
+    req->text = malloc(url_len + host_len + 320 + size);
     if (req->host == NULL || req->text == NULL)
         return -1;
     snprintf(req->port, sizeof(req->port), "%u", port);
@@ -568,24 +583,30 @@ static int parse_url(const char *url, struct nw_req *req)
     if (port != 80)
         snprintf(port_text, sizeof(port_text), ":%u", port);
     req->text_size = sprintf(req->text,
-            "GET %s%.*s HTTP/1.1\r\n"
+            "%s %s%.*s HTTP/1.1\r\n"
             "Host: %s%s%s%s\r\n"
             "User-Agent: asnw\r\n"
             "Accept: */*\r\n"
+            "%s"
             "Connection: close\r\n"
             "\r\n",
-            p[0] == '/' ? "" : "/", (int)target_len, p,
-            ipv6 ? "[" : "", req->host, ipv6 ? "]" : "", port_text);
+            method, p[0] == '/' ? "" : "/", (int)target_len, p,
+            ipv6 ? "[" : "", req->host, ipv6 ? "]" : "", port_text, about_body);
+    if (size > 0) {
+        memcpy(req->text + req->text_size, body, size);
+        req->text_size += size;
+    }
     return 0;
 }
 
-nw_req *nw_req_get(const char *url, double timeout, nw_req_callback callback, void *privdata)
+static nw_req *request(const char *method, const char *url, const char *content_type, const void *body, size_t size,
+        double timeout, nw_req_callback callback, void *privdata)
 {
     struct nw_req *req = malloc(sizeof(struct nw_req));
     if (req == NULL)
         return NULL;
     memset(req, 0, sizeof(struct nw_req));
-    if (parse_url(url, req) < 0 || pool_init() < 0) {
+    if (build_request(req, method, url, content_type, body, size) < 0 || pool_init() < 0) {
         req_free(req);
         return NULL;
     }
@@ -598,6 +619,21 @@ nw_req *nw_req_get(const char *url, double timeout, nw_req_callback callback, vo
         return NULL;
     }
     return req;
+}
+
+nw_req *nw_req_get(const char *url, double timeout, nw_req_callback callback, void *privdata)
+{
+    return request("GET", url, NULL, NULL, 0, timeout, callback, privdata);
+}
+
+nw_req *nw_req_post(const char *url, const char *content_type, const void *body, size_t size,
+        double timeout, nw_req_callback callback, void *privdata)
+{
+    if (size > NW_REQ_MAX_SIZE || (body == NULL && size > 0))
+        return NULL;
+    if (content_type == NULL)
+        content_type = "application/json";
+    return request("POST", url, content_type, body, size, timeout, callback, privdata);
 }
 
 void nw_req_cancel(nw_req *req)

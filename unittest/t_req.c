@@ -1,5 +1,5 @@
 /*
- * nw_req: GET a url from a real http server (nw_http, in this loop) and
+ * nw_req: GET and POST with a real http server (nw_http, in this loop) and
  * from a server that answers with whatever a test needs: chunked bodies,
  * bodies that end with the connection, broken and missing responses.
  * Then what can go wrong on the way: urls that are refused, a port
@@ -31,12 +31,26 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         CHECK_EQ(nw_http_reply_text(ses, 404, "text/plain", "nope", 4), 0);
     } else if (strcmp(req->path, "/empty") == 0) {
         CHECK_EQ(nw_http_reply_text(ses, 204, NULL, NULL, 0), 0);
+    } else if (strcmp(req->path, "/post/echo") == 0) {
+        /* the body as it came */
+        CHECK(strcmp(req->method, "POST") == 0);
+        CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", req->body, req->body_size), 0);
+    } else if (strcmp(req->method, "POST") == 0) {
+        char *type = nw_http_get_header(req, "Content-Type");
+        char *length = nw_http_get_header(req, "Content-Length");
+        char *host = nw_http_get_header(req, "Host");
+        int len = snprintf(body, sizeof(body), "POST path=%s query=%s host=%s type=%s length=%s body=%.*s",
+                req->path, req->query ? req->query : "", host ? host : "-", type ? type : "-",
+                length ? length : "-", (int)(req->body_size < 200 ? req->body_size : 200), (char *)req->body);
+        CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", body, len), 0);
     } else if (strcmp(req->path, "/big") == 0) {
         CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", big, BIG_SIZE), 0);
     } else {
         char *host = nw_http_get_header(req, "Host");
         char *agent = nw_http_get_header(req, "User-Agent");
         char *connection = nw_http_get_header(req, "Connection");
+        CHECK(nw_http_get_header(req, "Content-Length") == NULL && nw_http_get_header(req, "Content-Type") == NULL);
+        CHECK_EQ(req->body_size, 0);
         int len = snprintf(body, sizeof(body), "%s path=%s query=%s host=%s agent=%s connection=%s",
                 req->method, req->path, req->query ? req->query : "", host ? host : "-",
                 agent ? agent : "-", connection ? connection : "-");
@@ -91,7 +105,9 @@ static void raw_on_recv_pkg(nw_ses *ses, void *data, size_t size)
     char line[256];
     char path[128] = "";
     snprintf(line, sizeof(line), "%.*s", (int)(size < 200 ? size : 200), (char *)data);
-    CHECK_EQ(sscanf(line, "GET %127s HTTP/1.1", path), 1);
+    char method[8] = "";
+    CHECK_EQ(sscanf(line, "%7s %127s HTTP/1.1", method, path), 2);
+    CHECK(strcmp(method, "GET") == 0 || strcmp(method, "POST") == 0);
 
     if (strcmp(path, "/manychunks") == 0) {
         /* sent piece by piece, so that it is also read piece by piece */
@@ -190,6 +206,23 @@ static void fetch(struct result *r, double timeout, const char *fmt, ...)
         fprintf(stderr, "%-28s error %d: %s\n", strrchr(url, '/') ? strrchr(url, '/') : url, r->error, r->message);
 }
 
+static void post(struct result *r, double timeout, const char *content_type, const void *body, size_t size,
+        const char *fmt, ...) __attribute__((format(printf, 6, 7)));
+static void post(struct result *r, double timeout, const char *content_type, const void *body, size_t size,
+        const char *fmt, ...)
+{
+    char url[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(url, sizeof(url), fmt, ap);
+    va_end(ap);
+    result_reset(r);
+    CHECK(nw_req_post(url, content_type, body, size, timeout, on_response, r) != NULL);
+    wait_for(r);
+    if (r->error)
+        fprintf(stderr, "POST %-23s error %d: %s\n", strrchr(url, '/') ? strrchr(url, '/') : url, r->error, r->message);
+}
+
 # define CHECK_BODY(r, text) do { \
     CHECK_EQ((r)->error, 0); \
     CHECK_EQ((r)->size, strlen(text)); \
@@ -281,6 +314,7 @@ int main(void)
     memset(&r, 0, sizeof(r));
     char text[1024];
     bool slow = getenv("ASNW_UT_VALGRIND") != NULL;
+    double begin;
 
     /* urls that are not for nw_req: refused at once, no callback */
     const char *bad[] = {
@@ -309,6 +343,7 @@ int main(void)
     memset(&hc, 0, sizeof(hc));
     hc.bind_count = 1;
     hc.bind_arr = &bind_http;
+    hc.max_request_size = 2 * 1024 * 1024;
     nw_http_svr_type ht;
     memset(&ht, 0, sizeof(ht));
     ht.on_request = on_request;
@@ -399,6 +434,64 @@ int main(void)
     fetch(&r, 5.0, "http://127.0.0.1:%d/noreason", raw_port);
     CHECK_BODY(&r, "x");
 
+    /* POST: the body and what it is, json unless told otherwise */
+    const char *alert = "{\"alert\": \"disk full\", \"host\": \"db-3\"}";
+    post(&r, 5.0, NULL, alert, strlen(alert), "http://127.0.0.1:%d/alerts?level=2", http_port);
+    snprintf(text, sizeof(text), "POST path=/alerts query=level=2 host=127.0.0.1:%d type=application/json length=%zu body=%s",
+            http_port, strlen(alert), alert);
+    CHECK_BODY(&r, text);
+    CHECK_EQ(r.status, 200);
+    post(&r, 5.0, "text/plain; charset=utf-8", "plain words", 11, "http://localhost:%d/notes", http_port);
+    snprintf(text, sizeof(text), "POST path=/notes query= host=localhost:%d type=text/plain; charset=utf-8 length=11 body=plain words", http_port);
+    CHECK_BODY(&r, text);
+    /* the body is copied: the caller's may go at once */
+    char *gone = strdup("soon overwritten");
+    result_reset(&r);
+    snprintf(text, sizeof(text), "http://127.0.0.1:%d/copied", http_port);
+    CHECK(nw_req_post(text, "text/plain", gone, strlen(gone), 5.0, on_response, &r) != NULL);
+    memset(gone, 'x', strlen(gone));
+    free(gone);
+    wait_for(&r);
+    snprintf(text, sizeof(text), "POST path=/copied query= host=127.0.0.1:%d type=text/plain length=16 body=soon overwritten", http_port);
+    CHECK_BODY(&r, text);
+    /* no body at all is a body of no bytes */
+    post(&r, 5.0, NULL, NULL, 0, "http://127.0.0.1:%d/ping", http_port);
+    snprintf(text, sizeof(text), "POST path=/ping query= host=127.0.0.1:%d type=application/json length=0 body=", http_port);
+    CHECK_BODY(&r, text);
+    post(&r, 5.0, "text/plain", "", 0, "http://127.0.0.1:%d/ping", http_port);
+    CHECK_EQ(r.error, 0);
+    /* a megabyte of anything, zero bytes included, comes back the same */
+    enum { POST_SIZE = 1024 * 1024 + 7 };
+    post(&r, 20.0, "application/octet-stream", big, POST_SIZE, "http://127.0.0.1:%d/post/echo", http_port);
+    CHECK_EQ(r.error, 0);
+    CHECK_EQ(r.size, POST_SIZE);
+    CHECK(memcmp(r.body, big, POST_SIZE) == 0);
+    /* the status is the server's to choose */
+    post(&r, 5.0, NULL, "{}", 2, "http://127.0.0.1:%d/missing", http_port);
+    CHECK_EQ(r.status, 404);
+    CHECK_BODY(&r, "nope");
+    /* a server that takes the request and leaves */
+    post(&r, 5.0, NULL, "{}", 2, "http://127.0.0.1:%d/closed", raw_port);
+    CHECK_EQ(r.error, NW_REQ_ERR_IO);
+    /* and one that never reads: more than the system keeps for it */
+    char *huge = calloc(1, NW_REQ_MAX_SIZE + 1);
+    begin = ev_time();
+    post(&r, 0.5, "application/octet-stream", huge, NW_REQ_MAX_SIZE, "http://127.0.0.1:%d/", silent_port);
+    CHECK_EQ(r.error, NW_REQ_ERR_TIMEOUT);
+    CHECK(ev_time() - begin < (slow ? 20.0 : 5.0));
+    /* what is refused at once */
+    snprintf(text, sizeof(text), "http://127.0.0.1:%d/refused", http_port);
+    result_reset(&r);
+    CHECK(nw_req_post(text, NULL, huge, NW_REQ_MAX_SIZE + 1, 1.0, on_response, &r) == NULL);
+    CHECK(nw_req_post(text, NULL, NULL, 5, 1.0, on_response, &r) == NULL);
+    CHECK(nw_req_post(text, "", "x", 1, 1.0, on_response, &r) == NULL);
+    CHECK(nw_req_post(text, "text/plain\r\nX-Evil: 1", "x", 1, 1.0, on_response, &r) == NULL);
+    CHECK(nw_req_post(text, "text/plain\nX-Evil: 1", "x", 1, 1.0, on_response, &r) == NULL);
+    CHECK(nw_req_post("https://127.0.0.1/", NULL, "x", 1, 1.0, on_response, &r) == NULL);
+    free(huge);
+    ut_run_for(0.1);
+    CHECK_EQ(r.calls, 0);
+
     /* responses that are not */
     static const struct {
         const char *path;
@@ -426,7 +519,7 @@ int main(void)
     CHECK_EQ(r.error, NW_REQ_ERR_CONNECT);
 
     /* a server that never answers: the timeout, and not much later */
-    double begin = ev_time();
+    begin = ev_time();
     fetch(&r, 0.3, "http://127.0.0.1:%d/", silent_port);
     CHECK_EQ(r.error, NW_REQ_ERR_TIMEOUT);
     CHECK(ev_time() - begin >= 0.25);

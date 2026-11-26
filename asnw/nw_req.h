@@ -1,5 +1,5 @@
 /*
- * Description: a small http client: GET a url without blocking the loop
+ * Description: a small http client: GET or POST without blocking the loop
  *     History: yang@haipo.me, 2026/11/26, create
  */
 
@@ -10,12 +10,13 @@
 # include <stddef.h>
 
 /*
- * nw_req fetches a url for a program that cannot wait for it: the
+ * nw_req makes a http request for a program that cannot wait for it: the
  * request is made on a thread of its own with plain blocking code (look
  * the name up, connect, send, read), and the response is handed to a
- * callback on the loop thread. it is meant for the occasional request,
- * such as reading a configuration every minute, not for talking to
- * another service thousands of times a second.
+ * callback on the loop thread. it is meant for the occasional request to
+ * a service of the same trusted network, such as reading a configuration
+ * every minute or posting an alert, not for talking to another service
+ * thousands of times a second.
  *
  *     static void on_config(int error, nw_req_rsp *rsp, void *privdata)
  *     {
@@ -29,13 +30,13 @@
  *
  *     nw_req_get("http://config.internal:8500/v1/app?env=prod", 3.0, on_config, NULL);
  *
- * what it does: GET over http, a server given by name or by address,
- * every address of a name tried in turn, responses with a Content-Length,
- * chunked ones, and those that end with the connection.
+ * what it does: GET and POST over http, a server given by name or by
+ * address, every address of a name tried in turn, responses with a
+ * Content-Length, chunked ones, and those that end with the connection.
  *
  * what it does not: https, other methods, request headers of your own,
  * redirects (a 301 is handed to the callback as it is), compression,
- * keeping connections for the next request.
+ * keeping connections for the next request, trying again.
  */
 
 /* threads making the requests, for each loop thread that uses nw_req.
@@ -43,7 +44,8 @@
  * their turn. the threads are started by the first request and stopped
  * by nw_loop_release */
 # define NW_REQ_THREADS 2
-/* a response bigger than this, head included, is refused */
+/* a response bigger than this, head included, is refused, and so is the
+ * body of a POST */
 # define NW_REQ_MAX_SIZE (16 * 1024 * 1024)
 # define NW_REQ_URL_MAX 4096
 # define NW_REQ_MAX_HEADERS 64
@@ -102,6 +104,20 @@ typedef struct nw_req nw_req;
  * only good for nw_req_cancel, until the callback has been called.
  */
 nw_req *nw_req_get(const char *url, double timeout, nw_req_callback callback, void *privdata);
+
+/*
+ * POST size bytes of body to a url. content_type is what the body is,
+ * "text/plain" for instance; NULL means "application/json". the body is
+ * copied: it need not outlive the call. a body of no bytes is fine.
+ *
+ * everything else is as for nw_req_get, NULL also being returned for a
+ * body larger than NW_REQ_MAX_SIZE. one thing to keep in mind: a request
+ * that failed may have been received. after a timeout or a broken
+ * connection the server has perhaps done what was asked, so nw_req never
+ * sends a request twice, and whether to try again is yours to decide.
+ */
+nw_req *nw_req_post(const char *url, const char *content_type, const void *body, size_t size,
+        double timeout, nw_req_callback callback, void *privdata);
 
 /* forget a request: its callback will not be called. not to be called
  * once the callback has been, nor from inside it. requests still on their

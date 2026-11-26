@@ -22,7 +22,7 @@ it; do not guess a signature.
 | `nw_http` | HTTP/1.0 and 1.1 server. `thread_count` runs it on a hub | You expose an HTTP interface |
 | `nw_ws` | WebSocket server (RFC 6455). `thread_count` runs it on a hub | You push to browsers or apps |
 | `nw_job` | Thread pool: work on worker threads, result back on the loop thread | Something blocks: a database query, a disk read |
-| `nw_req` | HTTP GET on a thread of its own, response back on the loop thread | The occasional request, such as fetching a configuration |
+| `nw_req` | HTTP GET and POST on a thread of its own, response back on the loop thread | The occasional request inside a trusted network: fetching a configuration, posting an alert |
 | `nw_dns` | Name lookup (getaddrinfo) off the loop thread | You resolve a name yourself; `nw_clt` already uses it |
 | `nw_state` | Pending requests by id, each with a timeout | You wait for the answer to something you sent |
 | `nw_timer` | One-shot and repeating timers | |
@@ -170,9 +170,10 @@ them again without a new reason:
 - **`nw_clt` has no reconnect backoff, no idle timeout and no heartbeat.**
   Connections between services are few; heartbeats belong to the protocol
   above (see `wrapper/ut_rpc_clt.c` in the repository).
-- **No TLS, no HTTP/2, no general HTTP client.** `nw_req` is GET over
-  plain HTTP on purpose. Put a proxy in front for TLS, use libcurl for a
-  real client.
+- **No TLS, no HTTP/2, no general HTTP client.** `nw_req` is GET and POST
+  over plain HTTP inside a trusted network, on purpose: no https, no
+  request headers, no retries. Put a proxy in front for TLS, use libcurl
+  for a real client.
 - **Timeouts of `nw_svr` are accurate to about a second**, checked by one
   timer that walks the connections.
 - **`wrapper/ut_rpc`** in the repository is an example of a protocol on
