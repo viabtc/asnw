@@ -12,6 +12,7 @@
 # include "nw_buf.h"
 # include "nw_evt.h"
 # include "nw_ses.h"
+# include "nw_dns.h"
 # include "nw_sock.h"
 # include "nw_timer.h"
 
@@ -26,6 +27,20 @@
  *   send with nw_ses_send(&clt->ses, data, size)
  *
  * all callbacks run on the loop thread. see test/test_clt.c.
+ *
+ * a server given by name
+ *
+ * with nw_clt_cfg_parse the address may be a host name ("tcp@db.local:5432").
+ * the name is resolved by nw_dns, off the loop thread, before the client
+ * connects, and again each time it has to connect anew after a connection
+ * was lost: a client follows its server when the name moves to another
+ * address. a name with several addresses is tried address by address, in
+ * the order the system gives them; that is one connect attempt, and only
+ * when the last address has failed too is it reported (on_connect false,
+ * on_close) and repeated reconnect_timeout later, starting with a fresh
+ * look at the name. a name that can't be resolved is a failed attempt as
+ * well, reported through on_error_msg and on_close. the callbacks see the
+ * address in use in ses->peer_addr.
  *
  * stream and seqpacket clients
  *
@@ -51,6 +66,13 @@ typedef struct nw_clt_cfg {
     nw_addr_t addr;
     /* SOCK_STREAM, SOCK_DGRAM or SOCK_SEQPACKET */
     int sock_type;
+    /* optional
+     *
+     * the server by name: if host is not empty, addr is not used and the
+     * client connects to what host resolves to, on this port. sock_type
+     * must be SOCK_STREAM or SOCK_DGRAM. nw_clt_cfg_parse fills these */
+    char host[NW_DNS_HOST_MAX];
+    uint16_t port;
     /* must not be 0
      *
      * max size of one message, in bytes, and the size of the bufs used for
@@ -148,6 +170,16 @@ typedef struct nw_clt {
     bool on_connect_called;
     /* a unix dgram client binds a private socket file, removed on close */
     bool local_path_bound;
+    /* a server given by name: the name, the lookup in progress if any, and
+     * the addresses it gave, of which addr_next is the next one to try */
+    char *host;
+    uint16_t port;
+    nw_dns_req *dns_req;
+    nw_addr_t *addrs;
+    uint32_t addr_count;
+    uint32_t addr_next;
+    /* look the name up again before the next connect */
+    bool resolve_again;
     /* on_close is running; nw_clt_close was called from inside it */
     bool in_on_close;
     bool close_requested;
@@ -155,6 +187,20 @@ typedef struct nw_clt {
     uint32_t read_mem;
     uint32_t write_mem;
 } nw_clt;
+
+/*
+ * fill the address of a cfg from a string: what nw_sock_cfg_parse takes,
+ * and for tcp and udp also a host name in place of the ip:
+ *
+ *   tcp@10.0.0.1:5432       -> cfg->addr
+ *   tcp@db.local:5432       -> cfg->host, cfg->port
+ *   stream@/tmp/db.sock     -> cfg->addr
+ *
+ * the other fields of cfg are left alone. return 0, the errors of
+ * nw_sock_cfg_parse, or -6 if the host is not a possible name (too long,
+ * or other characters than letters, digits, '-', '_' and '.').
+ */
+int nw_clt_cfg_parse(const char *str, nw_clt_cfg *cfg);
 
 /* create a client. cfg and type are copied. nothing is connected yet.
  * privdata is stored in clt->ses.privdata, i.e. it is ses->privdata in

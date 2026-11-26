@@ -15,11 +15,12 @@ The core:
 | Module | What it is |
 |--------|------------|
 | `nw_svr` | Server. One instance can listen on several addresses of different types at once. Finds connections by id, walks them, times them out and closes them in an orderly way. |
-| `nw_clt` | Client. Keeps a connection to one address and reconnects automatically. |
+| `nw_clt` | Client. Keeps a connection to one server, given by address or by name, and reconnects automatically. |
 | `nw_hub` | A `nw_svr` on several threads: one thread accepts, each connection lives on one of N worker threads. Same callbacks, no locks, and sending by id across threads. |
 | `nw_timer` | Call a function after an interval, once or repeatedly. |
 | `nw_state` | Table of pending states that expire, for request tracking with timeouts. |
 | `nw_job` | Thread pool. Work runs on worker threads, results come back on the loop thread. |
+| `nw_dns` | Name lookup without blocking the loop: the system resolver runs on worker threads, the answer comes back on the loop thread. Used by `nw_clt`. |
 | `nw_dict` | Hash table from integer keys to pointers. Used by `nw_svr` and `nw_state`, usable on its own. |
 | `nw_buf` | Buffer pool, buffer list and a fixed size object cache. |
 | `nw_sock` | Address parsing and socket option helpers. |
@@ -255,9 +256,11 @@ The protocol name is case insensitive. Hosts are numeric addresses; there is no 
 
 **Clients.** A stream client retries every `reconnect_timeout` seconds (default 1.0), which is also how long a connect attempt may take. `on_close` is called once per lost connection or failed attempt; return > 0 from it to retry at once, or call `nw_clt_close` from it to stay closed. Check `nw_clt_connected` before sending. A datagram client is usable right after `nw_clt_start` and ignores UDP packets from any address other than its server.
 
+**A server given by name.** `nw_clt_cfg_parse` takes what `nw_sock_cfg_parse` takes and also a name, as in `tcp@db.internal:5432`. The name is looked up with the system resolver (`/etc/hosts`, DNS ...) on worker threads, so the loop never waits for it. When a name has several addresses they are tried one after the other and count as one attempt: `on_connect(false)` and `on_close` come once, after the last one has failed. The name is looked up again after every lost connection and every failed round, so a client follows a name that moves. A lookup that fails is reported through `on_error_msg` and counts as a failed attempt. A datagram client by name cannot send until its lookup is done: `on_connect(true)` tells when. To resolve a name yourself, see `nw_dns.h`.
+
 **Several threads.** `nw_hub` takes the same config and callbacks as `nw_svr` (in `cfg.svr` and `type.svr`) plus a thread count. A connection is given to one worker thread and stays there; its callbacks run on that thread, where `ses->svr` is an ordinary `nw_svr` holding the connections of that thread, so everything above applies unchanged. Connections on different threads reach each other by id: `nw_hub_send`, `nw_hub_close`, `nw_hub_shutdown` and `nw_hub_broadcast` may be called from any thread and queue the request for the thread that owns the connection (`queue_limit` bounds what may wait for a thread that is stuck); `nw_hub_post` runs a function of yours on a given worker. What the library cannot do for you: data of your own that several connections share is now used by several threads, so lock it or keep one copy per thread, set up in `on_thread_start`. Stream and seqpacket binds only.
 
-**Threads.** Every thread has an event loop of its own: what a thread creates (servers, clients, timers ...) runs on that thread, inside its `nw_loop_run`. A program with one thread need not think about any of this. Several threads can each run their own loop side by side, as nothing is shared between them, but there is no locking: an object and its connections may only be used by the thread that created them. To pass something to another thread, use a queue of your own and an `ev_async` watcher on the receiver's `nw_default_loop`. A thread other than the main one calls `nw_loop_release` before it exits. For blocking work there is `nw_job`: the work runs on worker threads and its `on_finish` callback runs back on the loop thread.
+**Threads.** Every thread has an event loop of its own: what a thread creates (servers, clients, timers ...) runs on that thread, inside its `nw_loop_run`. A program with one thread need not think about any of this. Several threads can each run their own loop side by side, as nothing is shared between them, but there is no locking: an object and its connections may only be used by the thread that created them. To pass something to another thread, use a queue of your own and an `ev_async` watcher on the receiver's `nw_default_loop`. A thread other than the main one calls `nw_loop_release` before it exits. For blocking work there is `nw_job`: the work runs on worker threads and its `on_finish` callback runs back on the loop thread. Name lookups use one of their own: the first lookup of a loop thread starts two resolver threads for it, which `nw_loop_release` stops.
 
 **Unix sockets.** Binding replaces a stale socket file at the path and makes the socket accessible to all local users (mode 0777).
 

@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     nw_clt_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.max_pkg_size = 10240;
-    if (nw_sock_cfg_parse(argv[1], &cfg.addr, &cfg.sock_type) < 0) {
+    if (nw_clt_cfg_parse(argv[1], &cfg) < 0) {
         error(1, errno, "parse peer addr: %s fail", argv[1]);
     }
 

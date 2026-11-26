@@ -50,12 +50,30 @@ void nw_loop_init(void)
     initialized = 1;
 }
 
+/* see nw_loop_at_release */
+# define NW_RELEASE_HOOK_MAX 8
+static __thread void (*release_hooks[NW_RELEASE_HOOK_MAX])(void);
+static __thread int release_hook_count;
+
+int nw_loop_at_release(void (*fn)(void))
+{
+    nw_loop_init();
+    if (release_hook_count == NW_RELEASE_HOOK_MAX)
+        return -1;
+    release_hooks[release_hook_count++] = fn;
+    return 0;
+}
+
 void nw_loop_release(void)
 {
     if (!initialized)
         return;
     if (running)
         return;
+
+    /* the last one to come is the first to go */
+    while (release_hook_count > 0)
+        release_hooks[--release_hook_count]();
 
     if (ev_is_active(&break_timer))
         ev_timer_stop(nw_default_loop, &break_timer);

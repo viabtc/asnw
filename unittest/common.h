@@ -111,7 +111,7 @@ UT_UNUSED static nw_clt *ut_clt(const char *cfg_str, nw_clt_type *type, uint32_t
 {
     nw_clt_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    CHECK(nw_sock_cfg_parse(cfg_str, &cfg.addr, &cfg.sock_type) == 0);
+    CHECK(nw_clt_cfg_parse(cfg_str, &cfg) == 0);
     cfg.max_pkg_size = max_pkg_size;
     cfg.reconnect_timeout = reconnect;
     nw_clt *clt = nw_clt_create(&cfg, type, privdata);

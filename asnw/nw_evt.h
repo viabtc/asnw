@@ -48,6 +48,11 @@ void nw_loop_run(void);
  * another thread, tell that thread */
 void nw_loop_break(void);
 
+/* internal: have fn called when the loop of the calling thread is
+ * released, before it is destroyed. for what a module keeps per thread
+ * (nw_dns: its resolver threads). return 0, or -1 if there is no room */
+int nw_loop_at_release(void (*fn)(void));
+
 /* make nw_loop_run return after waittime seconds, e.g. to let pending data
  * go out before exit. only has an effect while the loop is running, i.e.
  * when called from a callback */
