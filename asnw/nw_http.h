@@ -197,6 +197,10 @@ typedef struct nw_http_svr_cfg {
     /* max number of bufs (of max_request_size bytes) of response data
      * waiting to be sent on a connection, 0 for no limit. see nw_svr_cfg */
     uint32_t buf_limit;
+    /* kernel receive and send buffer size of each connection (SO_RCVBUF,
+     * SO_SNDBUF), 0 to keep the system default. see nw_svr_cfg */
+    uint32_t read_mem;
+    uint32_t write_mem;
     /* seconds an idle connection is kept open. 0 for the default, 60 */
     double keep_alive_timeout;
     /* seconds a client may take to send a whole request, counted from its

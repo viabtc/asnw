@@ -959,6 +959,8 @@ static nw_ws_svr *ws_svr_new(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type, void *pri
     if (raw_cfg.max_pkg_size < NW_WS_HANDSHAKE_MAX_SIZE)
         raw_cfg.max_pkg_size = NW_WS_HANDSHAKE_MAX_SIZE;
     raw_cfg.buf_limit = cfg->buf_limit;
+    raw_cfg.read_mem = cfg->read_mem;
+    raw_cfg.write_mem = cfg->write_mem;
 
     nw_svr_type raw_type;
     memset(&raw_type, 0, sizeof(raw_type));

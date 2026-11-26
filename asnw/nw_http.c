@@ -1024,6 +1024,8 @@ static nw_http_svr *http_svr_new(nw_http_svr_cfg *cfg, nw_http_svr_type *type, v
     raw_cfg.bind_arr = cfg->bind_arr;
     raw_cfg.max_pkg_size = svr->max_request_size;
     raw_cfg.buf_limit = cfg->buf_limit;
+    raw_cfg.read_mem = cfg->read_mem;
+    raw_cfg.write_mem = cfg->write_mem;
     raw_cfg.idle_timeout = svr->keep_alive_timeout;
 
     nw_svr_type raw_type;

@@ -102,6 +102,10 @@ typedef struct nw_ws_svr_cfg {
      * waiting on a connection, 0 for no limit. a client that reads too
      * slowly to stay under the limit is disconnected. see nw_svr_cfg */
     uint32_t buf_limit;
+    /* kernel receive and send buffer size of each connection (SO_RCVBUF,
+     * SO_SNDBUF), 0 to keep the system default. see nw_svr_cfg */
+    uint32_t read_mem;
+    uint32_t write_mem;
     /* seconds a connection may stay silent before it is closed. anything
      * the client sends counts, including the pong to our ping.
      * 0 for the default, 60 */
