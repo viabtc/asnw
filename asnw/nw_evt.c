@@ -99,6 +99,9 @@ void nw_loop_break(void)
     if (!running)
         return;
 
+    /* a nw_loop_break_later still waiting is for this run, not the next */
+    if (ev_is_active(&break_timer))
+        ev_timer_stop(nw_default_loop, &break_timer);
     ev_break(nw_default_loop, EVBREAK_ALL);
     running = 0;
 }

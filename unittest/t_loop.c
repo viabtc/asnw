@@ -1,7 +1,7 @@
 /*
  * nw_loop_break_later: the loop goes on for a while and then returns,
  * when asked from a callback; asked while the loop is not running it
- * does nothing.
+ * does nothing, and a loop that returned for another reason forgets it.
  */
 # include "common.h"
 
@@ -15,6 +15,11 @@ static void on_timer(nw_timer *timer, void *privdata)
     nw_loop_break_later(0.2);
     /* asked twice: the first one counts */
     nw_loop_break_later(30.0);
+}
+
+static void on_break_now(nw_timer *timer, void *privdata)
+{
+    nw_loop_break();
 }
 
 int main(void)
@@ -42,6 +47,22 @@ int main(void)
     begin = ev_time();
     ut_run_for(0.3);
     CHECK(ev_time() - begin >= 0.25);
+
+    /* asked to return later, then told to return now: the first request is
+     * forgotten, it does not cut the next run short (regression) */
+    asked = 0;
+    nw_timer_set(&timer, 0.01, false, on_timer, NULL);
+    nw_timer_start(&timer);
+    nw_timer now;
+    nw_timer_set(&now, 0.05, false, on_break_now, NULL);
+    nw_timer_start(&now);
+    begin = ev_time();
+    ut_run_for(10.0);
+    CHECK_EQ(asked, 1);
+    CHECK(ev_time() - begin < 0.15);
+    begin = ev_time();
+    ut_run_for(0.6);
+    CHECK(ev_time() - begin >= 0.55);
 
     nw_loop_release();
     return 0;
