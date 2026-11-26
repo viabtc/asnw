@@ -179,6 +179,60 @@ them again without a new reason:
 - **Plain C, kept simple.** No C++, no new dependency, no configuration
   knob without a user for it. A fixed constant beats an option.
 
+## Names
+
+New names follow the ones that exist. The patterns:
+
+- **Functions** are `nw_<module>_<verb>`, types `nw_<module>`, its config
+  `nw_<module>_cfg`, its set of callbacks `nw_<module>_type`, a single
+  callback `nw_<module>_callback`, an iterator `nw_<module>_iterator` with
+  `nw_<module>_iter_init` and `nw_<module>_next`. No `_t` suffix.
+- **Life of an object**: `create`, `start`, `stop`, `release`. `release`
+  frees an object, `free` gives an item back to a pool (`nw_buf_free`),
+  `cancel` forgets something asynchronous (`nw_dns_cancel`). `close` drops
+  a connection now, `shutdown` closes it once what is pending was sent.
+- **Callbacks** start with `on_`. The one exception is `decode_pkg`, which
+  is a question, not an event.
+- **By id**: a function that takes an id instead of a `nw_ses` gets the
+  `_id` suffix only when the `nw_ses` version has the same name:
+  `nw_http_reply` / `nw_http_reply_id`. `nw_svr_send` and `nw_hub_send`
+  take an id and need no suffix, their `nw_ses` version being
+  `nw_ses_send`.
+- **Limits** are `max_<unit>_size` in a cfg (`max_pkg_size`,
+  `max_request_size`, `max_message_size`) and `NW_<MODULE>_MAX_<WHAT>` as
+  constants; a default is `NW_<MODULE>_DEFAULT_<WHAT>`. Times are seconds
+  in a `double`, called `<what>_timeout` or `<what>_interval`.
+- **Parameters**: bytes are `data, size`, never `len`. The pointer of the
+  user is `privdata`.
+
+Words that mean one thing each:
+
+| Word | Means | As in |
+|---|---|---|
+| `request`, `response` | The two HTTP messages, as nouns | `nw_http_request`, `nw_req_response`, `on_request` |
+| `reply` | To answer the peer, as a verb | `nw_http_reply`, `nw_http_reply_body` |
+| `req`, `rsp` | Variables and parameters only, never part of a type | `nw_http_response *rsp` |
+| `result` | What a job produced | `entry->result` |
+| `query` | A name lookup on its way | `nw_dns_query` |
+| `msg` | The text of an error, for a person | `on_error_msg`, `rsp->error_msg` |
+| `message` | A WebSocket message | `on_message`, `max_message_size` |
+| `pkg` | One message of the application on a `nw_svr` or `nw_clt` | `decode_pkg`, `on_recv_pkg` |
+| `body` | The payload of an HTTP message | `req->body`, `body_size` |
+| `bind` | An address a server listens on | `bind_arr`, `bind_count`, `bind_list` |
+| `clt` in a `nw_svr_` name | A connection of the server; the client object is `nw_clt` | `nw_svr_close_clt`, `clt_count` |
+| `name` | The name of a server to connect to | `cfg.name`, `NW_DNS_MAX_NAME` |
+| `host` | This machine's side of a socket | `ses->host_addr`, `nw_sock_host_addr` |
+| `post` | The HTTP method | `nw_req_post` |
+| `run` | To have a function called on another thread | `nw_hub_run` |
+
+Kept as they are for the programs already written against them, not to be
+taken as patterns: the loop functions are `nw_loop_*` although their file
+is `nw_evt`; a connection opening and closing is `on_new_connection` /
+`on_connection_close` for `nw_svr`, `nw_hub` and `nw_http`, `on_connect` /
+`on_close` for `nw_clt`, and `on_open` / `on_close` for `nw_ws`, where the
+words are those of WebSocket and `on_open` comes after the handshake; a
+client has `nw_clt_close` where servers have `stop`.
+
 ## Changing the library
 
 Style, as in the existing files: 4 spaces, `# include` and `# define` with
