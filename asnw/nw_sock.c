@@ -16,26 +16,7 @@
 char *nw_sock_human_addr(nw_addr *addr)
 {
     static __thread char str[NW_SOCK_HUMAN_ADDR_SIZE];
-    char ip[INET6_ADDRSTRLEN];
-
-    switch (addr->family) {
-    case AF_INET:
-        inet_ntop(addr->family, &addr->in.sin_addr, ip, sizeof(ip));
-        snprintf(str, sizeof(str), "%s:%u", ip, ntohs(addr->in.sin_port));
-        break;
-    case AF_INET6:
-        inet_ntop(addr->family, &addr->in6.sin6_addr, ip, sizeof(ip));
-        snprintf(str, sizeof(str), "[%s]:%u", ip, ntohs(addr->in6.sin6_port));
-        break;
-    case AF_UNIX:
-        snprintf(str, sizeof(str), "%s:%s", "unix", (addr->un.sun_path));
-        break;
-    default:
-        str[0] = 0;
-        break;
-    }
-
-    return str;
+    return nw_sock_human_addr_s(addr, str);
 }
 
 char *nw_sock_human_addr_s(nw_addr *addr, char *dest)
@@ -64,19 +45,8 @@ char *nw_sock_human_addr_s(nw_addr *addr, char *dest)
 
 char *nw_sock_ip(nw_addr *addr)
 {
-    static __thread char ip[INET6_ADDRSTRLEN];
-    switch (addr->family) {
-    case AF_INET:
-        inet_ntop(addr->family, &addr->in.sin_addr, ip, sizeof(ip));
-        break;
-    case AF_INET6:
-        inet_ntop(addr->family, &addr->in6.sin6_addr, ip, sizeof(ip));
-        break;
-    default:
-        ip[0] = 0;
-        break;
-    }
-    return ip;
+    static __thread char ip[NW_SOCK_IP_SIZE];
+    return nw_sock_ip_s(addr, ip);
 }
 
 char *nw_sock_ip_s(nw_addr *addr, char *ip)
