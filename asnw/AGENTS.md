@@ -1,11 +1,9 @@
 # asnw: notes for AI agents
 
 asnw is an asynchronous network library in C on top of libev
-(github.com/haipome/asnw). This directory is the whole library: about
-6,600 lines of core and 2,900 lines for the HTTP and WebSocket servers,
-headers and comments included. The only dependencies are libev and
-pthread. Link with `-lasnw -lev -lpthread`, or compile the `.c` files of
-this directory into the program.
+(github.com/haipome/asnw). This directory is the whole library. The only
+dependencies are libev and pthread. Link with `-lasnw -lev -lpthread`, or
+compile the `.c` files of this directory into the program.
 
 **The headers are the documentation.** Each `nw_*.h` starts with a comment
 that explains the module, and every callback and function is described
