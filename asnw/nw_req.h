@@ -102,6 +102,14 @@ typedef struct nw_req nw_req;
  * return NULL if the url is not one of the above (https for instance) or
  * if out of memory: then the callback is not called. the return value is
  * only good for nw_req_cancel, until the callback has been called.
+ *
+ * callback may be NULL, for a request whose outcome does not matter: it
+ * is made all the same, and nothing tells whether it worked. the return
+ * value then only says that the request was accepted, and must not be
+ * given to nw_req_cancel, as nothing tells when the request is over.
+ *
+ * the url is sent as it is, so what is put into it has to be encoded
+ * first, see nw_req_url_encode.
  */
 nw_req *nw_req_get(const char *url, double timeout, nw_req_callback callback, void *privdata);
 
@@ -123,6 +131,21 @@ nw_req *nw_req_post(const char *url, const char *content_type, const void *body,
  * once the callback has been, nor from inside it. requests still on their
  * way when the loop is released are dropped the same way */
 void nw_req_cancel(nw_req *req);
+
+/*
+ * encode size bytes of anything so that they can be part of a url: the
+ * value of a parameter, a piece of a path. letters, digits and - _ . ~
+ * stay as they are, every other byte becomes %XX, a space %20.
+ *
+ *     char name[256], url[512];
+ *     nw_req_url_encode(user_name, strlen(user_name), name, sizeof(name));
+ *     snprintf(url, sizeof(url), "http://users.internal/find?name=%s&limit=10", name);
+ *
+ * encode the values, not the whole url: its / ? & = would be encoded too.
+ * dest gets a '\0' at the end and needs up to size * 3 + 1 bytes.
+ * return the length of the result, or -1 if dest_size is too small.
+ */
+int nw_req_url_encode(const void *data, size_t size, char *dest, size_t dest_size);
 
 /* the value of a header of the response, whatever the case of its name,
  * or NULL */

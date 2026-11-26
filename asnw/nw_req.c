@@ -444,7 +444,8 @@ static void on_job(nw_job_entry *entry, void *privdata)
 static void on_finish(nw_job_entry *entry)
 {
     struct nw_req *req = entry->request;
-    if (req->cancelled)
+    /* nobody wants to know: cancelled, or made without a callback */
+    if (req->cancelled || req->callback == NULL)
         return;
     nw_req_rsp *rsp = &req->rsp;
     if (req->error) {
@@ -639,6 +640,31 @@ nw_req *nw_req_post(const char *url, const char *content_type, const void *body,
 void nw_req_cancel(nw_req *req)
 {
     __atomic_store_n(&req->cancelled, 1, __ATOMIC_RELAXED);
+}
+
+int nw_req_url_encode(const void *data, size_t size, char *dest, size_t dest_size)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    const unsigned char *src = data;
+    size_t len = 0;
+    for (size_t i = 0; i < size; ++i) {
+        unsigned char c = src[i];
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            if (len + 1 >= dest_size)
+                return -1;
+            dest[len++] = c;
+        } else {
+            if (len + 3 >= dest_size)
+                return -1;
+            dest[len++] = '%';
+            dest[len++] = hex[c >> 4];
+            dest[len++] = hex[c & 15];
+        }
+    }
+    if (len >= dest_size)
+        return -1;
+    dest[len] = '\0';
+    return len;
 }
 
 const char *nw_req_get_header(nw_req_rsp *rsp, const char *name)

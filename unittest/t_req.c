@@ -23,10 +23,32 @@ static char *big;
 static char *chunked_body;
 static size_t chunked_size;
 
+/* requests made without a callback: only the server knows of them */
+static int quiet_gets, quiet_posts;
+static char quiet_body[64];
+
 /* the real server */
 static void on_request(nw_ses *ses, nw_http_request *req)
 {
     char body[1024];
+    if (strcmp(req->path, "/quiet") == 0) {
+        if (strcmp(req->method, "POST") == 0) {
+            quiet_posts++;
+            snprintf(quiet_body, sizeof(quiet_body), "%.*s", (int)req->body_size, (char *)req->body);
+        } else {
+            quiet_gets++;
+        }
+        CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", "noted", 5), 0);
+        return;
+    }
+    if (strcmp(req->path, "/decode") == 0) {
+        /* "v=..." decoded, as a server reads a parameter */
+        CHECK(req->query != NULL && strncmp(req->query, "v=", 2) == 0);
+        int len = nw_http_url_decode(req->query + 2, strlen(req->query + 2), true);
+        CHECK(len >= 0);
+        CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", req->query + 2, len), 0);
+        return;
+    }
     if (strcmp(req->path, "/missing") == 0) {
         CHECK_EQ(nw_http_reply_text(ses, 404, "text/plain", "nope", 4), 0);
     } else if (strcmp(req->path, "/empty") == 0) {
@@ -509,6 +531,66 @@ int main(void)
             exit(1);
         }
     }
+
+    /* what goes into a url is encoded first */
+    static const struct {
+        const char *in;
+        const char *out;
+    } encoded[] = {
+        { "", "" },
+        { "abcXYZ019-_.~", "abcXYZ019-_.~" },
+        { "a b", "a%20b" },
+        { "a+b&c=d/e?f#g%h", "a%2Bb%26c%3Dd%2Fe%3Ff%23g%25h" },
+        { "\r\n\t\"<>'", "%0D%0A%09%22%3C%3E%27" },
+        { "\xe4\xb8\xad\xe6\x96\x87", "%E4%B8%AD%E6%96%87" },
+        { "http://host/x", "http%3A%2F%2Fhost%2Fx" },
+    };
+    for (size_t i = 0; i < sizeof(encoded) / sizeof(encoded[0]); ++i) {
+        size_t in_len = strlen(encoded[i].in), out_len = strlen(encoded[i].out);
+        CHECK_EQ(nw_req_url_encode(encoded[i].in, in_len, text, sizeof(text)), (int)out_len);
+        CHECK(strcmp(text, encoded[i].out) == 0);
+        /* room for the result and its '\0', not a byte less */
+        memset(text, '#', sizeof(text));
+        CHECK_EQ(nw_req_url_encode(encoded[i].in, in_len, text, out_len + 1), (int)out_len);
+        CHECK_EQ(text[out_len], '\0');
+        CHECK_EQ(text[out_len + 1], '#');
+        CHECK_EQ(nw_req_url_encode(encoded[i].in, in_len, text, out_len), -1);
+    }
+    CHECK_EQ(nw_req_url_encode("x", 1, text, 0), -1);
+    /* every byte there is, through a url and back out of the server */
+    unsigned char all[256];
+    for (int i = 0; i < 256; ++i)
+        all[i] = i;
+    char all_encoded[256 * 3 + 1], all_url[1024];
+    CHECK_EQ(nw_req_url_encode(all, sizeof(all), all_encoded, sizeof(all_encoded)), 66 + 190 * 3);
+    snprintf(all_url, sizeof(all_url), "http://127.0.0.1:%d/decode?v=%s", http_port, all_encoded);
+    result_reset(&r);
+    CHECK(nw_req_get(all_url, 5.0, on_response, &r) != NULL);
+    wait_for(&r);
+    CHECK_EQ(r.error, 0);
+    CHECK_EQ(r.size, sizeof(all));
+    CHECK(memcmp(r.body, all, sizeof(all)) == 0);
+
+    /* no callback: the request is made, and that is all */
+    snprintf(text, sizeof(text), "http://127.0.0.1:%d/quiet", http_port);
+    CHECK(nw_req_post(text, NULL, "{\"n\": 1}", 8, 5.0, NULL, NULL) != NULL);
+    CHECK(nw_req_get(text, 5.0, NULL, NULL) != NULL);
+    for (int i = 0; i < 1000 && quiet_gets + quiet_posts < 2; ++i)
+        ut_run_for(0.01);
+    CHECK_EQ(quiet_gets, 1);
+    CHECK_EQ(quiet_posts, 1);
+    CHECK(strcmp(quiet_body, "{\"n\": 1}") == 0);
+    /* nor is anybody told when it fails */
+    snprintf(text, sizeof(text), "http://127.0.0.1:%d/", dead_port);
+    CHECK(nw_req_get(text, 5.0, NULL, NULL) != NULL);
+    CHECK(nw_req_post(text, NULL, "{}", 2, 5.0, NULL, NULL) != NULL);
+    snprintf(text, sizeof(text), "http://127.0.0.1:%d/garbage", raw_port);
+    CHECK(nw_req_get(text, 5.0, NULL, NULL) != NULL);
+    snprintf(text, sizeof(text), "http://127.0.0.1:%d/", silent_port);
+    CHECK(nw_req_post(text, NULL, "{}", 2, 0.2, NULL, NULL) != NULL);
+    ut_run_for(0.5);
+    /* and bad arguments are refused all the same */
+    CHECK(nw_req_get("https://127.0.0.1/", 5.0, NULL, NULL) == NULL);
 
     /* nobody there */
     fetch(&r, 5.0, "http://127.0.0.1:%d/", dead_port);
