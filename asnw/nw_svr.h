@@ -63,12 +63,16 @@
  *
  * a connection with unfinished input holds one buf of max_pkg_size bytes,
  * and what waits to be sent is kept in such bufs. they come from the pool
- * of the server, which reuses them. once a minute the server gives those
- * it has no use for back to the system: it keeps as many free bufs as it
- * has in use, and at least 64. so the memory of a peak is returned within
- * a minute or two, a server under steady load keeps what it works with,
- * and a small one is left alone. there is nothing to set and nothing to
- * call.
+ * of the server, which reuses them, as its cache reuses the memory of the
+ * sessions. once a minute the server gives what it has no use for back to
+ * the system: it keeps as many free bufs as it has in use, and at least
+ * 64, and the same for sessions. so the memory of a peak is returned
+ * within a minute or two, a server under steady load keeps what it works
+ * with, and a small one is left alone. there is nothing to set and
+ * nothing to call.
+ *
+ * one more reason not to keep a nw_ses pointer: the memory of a closed
+ * session is reused by a later connection, or given back to the system.
  *
  * datagrams
  *
@@ -251,8 +255,8 @@ typedef struct nw_svr {
     double timer_interval;
     bool in_sweep;
     double sweep_shortest;
-    /* once a minute, gives the bufs the pool has no use for back to the
-     * system */
+    /* once a minute, gives the bufs and the sessions the server has no
+     * use for back to the system */
     nw_timer shrink_timer;
     uint64_t id_start;
     /* the privdata given to nw_svr_create. reach it from a callback with

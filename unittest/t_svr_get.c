@@ -65,10 +65,11 @@ int main(void)
     CHECK_EQ(write(b, "req\n", 4), 4);
     ut_run_for(0.05);
     uint64_t b_id = last_id;
-    CHECK(last_ses == a_ses);
+    if (!UT_SHRINK_ALWAYS)
+        CHECK(last_ses == a_ses);
     CHECK(b_id != a_id);
     CHECK(nw_svr_get(svr, a_id) == NULL);
-    CHECK(nw_svr_get(svr, b_id) == a_ses);
+    CHECK(nw_svr_get(svr, b_id) == last_ses);
     CHECK_EQ(nw_svr_send(svr, a_id, "for a\n", 6), -1);
     CHECK_EQ(recv(b, buf, sizeof(buf), MSG_DONTWAIT), -1);      /* b got nothing meant for a */
 

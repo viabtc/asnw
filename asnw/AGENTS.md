@@ -167,12 +167,14 @@ them again without a new reason:
   `nw_buf_pool` stays readable (a session is still read after it is
   closed, a callback that closed its connection still reads its message,
   an iterator steps off a deleted entry). Freeing it there creates
-  use-after-free; it has been tried. Bufs are given back later and from a
-  timer only: every `nw_svr` calls `nw_buf_pool_shrink` once a minute,
-  keeping as many free bufs as are in use and at least 64. That policy
-  lives in `nw_svr.c`, the function only takes the number to keep. A
-  `nw_cache` never frees: its objects are small and their addresses are
-  counted on. A client's pool is not shrunk either, clients being few.
+  use-after-free; it has been tried. Memory is given back later and from
+  a timer only: every `nw_svr` calls `nw_buf_pool_shrink` for its bufs and
+  `nw_cache_shrink` for its sessions once a minute, keeping as many free
+  ones as are in use and at least 64. That policy lives in `nw_svr.c`, the
+  two functions only take the number to keep. The other caches (dict
+  entries, `nw_state`, `nw_job`, the connections of `nw_http` and `nw_ws`)
+  and the pool of a client are not shrunk: they are small, or have no
+  timer of their own to do it from.
 - **`buf_limit` defaults to unlimited**, and there is no built-in rate
   limiting or backpressure policy. That belongs to the program.
 - **`nw_clt` has no reconnect backoff, no idle timeout and no heartbeat.**
@@ -259,6 +261,8 @@ make check            unit tests, debug build
 make check-asan       AddressSanitizer + UBSan
 make check-tsan       ThreadSanitizer
 make check-valgrind   valgrind memcheck
+make check-shrink     AddressSanitizer, with servers that give their free
+                      bufs and sessions back every millisecond, all of them
 make VARIANT=release check
 make lint             gcc -Wextra and cppcheck
 make check-asan T=t_echo      one test only
@@ -274,7 +278,9 @@ Things the code depends on that are easy to break:
 
 - A callback may close its own connection, or release other ones, and the
   library goes on reading the session afterwards: see the note on pools
-  above before touching anything that frees memory.
+  above before touching anything that frees memory. `make check-shrink` is
+  the test for it: what a server gives back once a minute is given back
+  at once there, so a read of freed memory cannot stay hidden.
 - A session is closed before its close callback runs, never after.
 - One read per readable event for streams: the loop stops after a short
   read. Do not turn it back into "read until EAGAIN".

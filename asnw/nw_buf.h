@@ -39,12 +39,19 @@ typedef struct nw_buf {
  * closed inside a callback is still asked whether it is closed, a callback
  * that closed its own connection may still be reading its message, an
  * iterator steps off a deleted entry. so nothing is freed at the moment
- * it is given back: nw_buf_pool_shrink is called later, from a timer,
- * when nothing of the kind is going on. nw_cache has no such call.
+ * it is given back: nw_buf_pool_shrink and nw_cache_shrink are called
+ * later, from a timer, when nothing of the kind is going on.
  */
 
-/* the free bufs nw_buf_pool_shrink always leaves in a pool */
+/* the free bufs nw_buf_pool_shrink always leaves in a pool, and the free
+ * objects nw_cache_shrink always leaves in a cache. a test may build the
+ * library with other values, a program has no reason to */
+# ifndef NW_BUF_POOL_MIN_FREE
 # define NW_BUF_POOL_MIN_FREE 64
+# endif
+# ifndef NW_CACHE_MIN_FREE
+# define NW_CACHE_MIN_FREE 64
+# endif
 
 typedef struct nw_buf_pool {
     /* capacity of every buf of this pool */
@@ -72,7 +79,7 @@ typedef struct nw_buf_list {
 } nw_buf_list;
 
 /* nw_cache is a factory of untyped objects of one size, with the same reuse
- * behaviour as nw_buf_pool */
+ * behaviour as nw_buf_pool, and nw_cache_shrink for nw_buf_pool_shrink */
 typedef struct nw_cache {
     /* size of every object */
     uint32_t size;
@@ -153,5 +160,16 @@ void nw_cache_free(nw_cache *cache, void *obj);
 /* free the cache and the objects waiting for reuse. objects still in use
  * must be given back first */
 void nw_cache_release(nw_cache *cache);
+/*
+ * give free objects back to the system: `keep` of them stay in the cache,
+ * and never less than NW_CACHE_MIN_FREE; the others are freed. return the
+ * number of objects freed.
+ *
+ * as with nw_buf_pool_shrink, the caller is a timer, not a callback of a
+ * server or a client. and an object freed this way is gone for good: a
+ * pointer to it that somebody kept is no longer a pointer to memory of
+ * the cache, it is a pointer to nothing.
+ */
+uint32_t nw_cache_shrink(nw_cache *cache, uint32_t keep);
 
 # endif

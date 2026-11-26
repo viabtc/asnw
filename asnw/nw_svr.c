@@ -17,8 +17,11 @@
  * shorter than that asks for, but not faster than this */
 # define NW_SVR_TIMER_INTERVAL  1.0
 # define NW_SVR_TIMER_MIN       0.05
-/* seconds between two looks at the pool for bufs to give back */
+/* seconds between two looks at what the server has no use for any more.
+ * a test may build the library with another value */
+# ifndef NW_SVR_SHRINK_INTERVAL
 # define NW_SVR_SHRINK_INTERVAL 60.0
+# endif
 
 static void on_error(nw_ses *ses, const char *msg);
 static void on_timer(nw_timer *timer, void *privdata);
@@ -324,17 +327,19 @@ int nw_svr_add_accepted_fd(nw_svr *svr, uint32_t bind_index, int fd, nw_addr *pe
 }
 
 /*
- * the pool keeps the bufs of the busiest moment. once a minute, those it
- * has no use for any more are given back: as many free bufs stay as there
- * are bufs in use, and nw_buf_pool_shrink never leaves less than 64, so a
- * server at work keeps what it works with and a small one is left alone.
- * this runs from a timer because nothing may be freed while a callback of
- * a connection is on its way, see nw_buf.h.
+ * the pool of bufs and the cache of sessions keep what the busiest moment
+ * took. once a minute, what they have no use for any more is given back:
+ * as many free ones stay as there are in use, and the shrink functions
+ * never leave less than 64, so a server at work keeps what it works with
+ * and a small one is left alone. this runs from a timer because nothing
+ * may be freed while a callback of a connection is on its way, see
+ * nw_buf.h.
  */
 static void on_shrink_timer(nw_timer *timer, void *privdata)
 {
     nw_svr *svr = privdata;
     nw_buf_pool_shrink(svr->buf_pool, svr->buf_pool->used);
+    nw_cache_shrink(svr->ses_cache, svr->ses_cache->used);
 }
 
 nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)

@@ -19,6 +19,16 @@
 # include "nw_state.h"
 # include "nw_job.h"
 
+/* "make check-shrink" builds the library so that a server gives its free
+ * bufs and sessions back every millisecond, all of them. the few tests
+ * that look at what a pool keeps, or at where a session is in memory,
+ * leave those looks out in that build */
+# ifdef NW_SVR_SHRINK_INTERVAL
+# define UT_SHRINK_ALWAYS 1
+# else
+# define UT_SHRINK_ALWAYS 0
+# endif
+
 # define UT_UNUSED __attribute__((unused))
 
 # define CHECK(cond) do { \

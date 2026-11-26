@@ -105,8 +105,9 @@ void nw_buf_free(nw_buf_pool *pool, nw_buf *buf)
 
 uint32_t nw_buf_pool_shrink(nw_buf_pool *pool, uint32_t keep)
 {
-    if (keep < NW_BUF_POOL_MIN_FREE)
-        keep = NW_BUF_POOL_MIN_FREE;
+    uint32_t min_free = NW_BUF_POOL_MIN_FREE;
+    if (keep < min_free)
+        keep = min_free;
     uint32_t count = 0;
     while (pool->free > keep) {
         free(pool->free_arr[--pool->free]);
@@ -261,6 +262,19 @@ void nw_cache_free(nw_cache *cache, void *obj)
             free(obj);
         }
     }
+}
+
+uint32_t nw_cache_shrink(nw_cache *cache, uint32_t keep)
+{
+    uint32_t min_free = NW_CACHE_MIN_FREE;
+    if (keep < min_free)
+        keep = min_free;
+    uint32_t count = 0;
+    while (cache->free > keep) {
+        free(cache->free_arr[--cache->free]);
+        count++;
+    }
+    return count;
 }
 
 void nw_cache_release(nw_cache *cache)

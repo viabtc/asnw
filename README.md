@@ -257,7 +257,7 @@ The protocol name is case insensitive. Hosts are numeric addresses: `nw_sock_add
 
 **Datagram servers.** The session passed to `on_recv_pkg` is the listening one, and `nw_ses_send` replies to the sender of the datagram being handled. Reply inside the callback, or copy `ses->peer_addr`.
 
-**Memory.** A connection with unfinished input holds one buf of `max_pkg_size` bytes, and what waits to be sent is kept in such bufs. They come from the pool of the server, which reuses them. Once a minute a server gives the bufs it has no use for back to the system: it keeps as many free ones as it has in use, and at least 64. The memory of a peak is thus returned within a minute or two, without anything to set or to call; `nw_hub`, `nw_http` and `nw_ws` are built on `nw_svr` and do the same.
+**Memory.** A connection with unfinished input holds one buf of `max_pkg_size` bytes, and what waits to be sent is kept in such bufs. They come from the pool of the server, which reuses them, as its cache reuses the memory of sessions. Once a minute a server gives what it has no use for back to the system: it keeps as many free bufs as it has in use, and at least 64, and the same for sessions. The memory of a peak is thus returned within a minute or two, without anything to set or to call; `nw_hub`, `nw_http` and `nw_ws` are built on `nw_svr` and do the same.
 
 **Clients.** A stream client retries every `reconnect_timeout` seconds (default 1.0), which is also how long a connect attempt may take. `on_close` is called once per lost connection or failed attempt; return > 0 from it to retry at once, or call `nw_clt_stop` from it to stay closed. Check `nw_clt_connected` before sending. A datagram client is usable right after `nw_clt_start` and ignores UDP packets from any address other than its server.
 
@@ -297,6 +297,7 @@ make check            # unit tests
 make check-asan       # under AddressSanitizer and UBSan
 make check-tsan       # under ThreadSanitizer
 make check-valgrind   # under valgrind
+make check-shrink     # under AddressSanitizer, servers giving memory back all the time
 make coverage         # line coverage per source file
 make lint             # gcc -Wextra and cppcheck
 ```

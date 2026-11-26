@@ -1,12 +1,13 @@
 /*
- * A nw_svr gives the bufs its pool has no use for back to the system,
- * from a timer of its own, once a minute. Here that timer is made to
- * fire every millisecond while a hundred connections send whole and
- * partial messages, are closed in the middle of one, and while a client
- * that does not read lets thousands of bufs pile up to be sent. Nothing
- * is lost, and the pool ends up small again. The point of running it is
- * the sanitizers: a buf freed while something still uses it would show
- * there.
+ * A nw_svr gives the bufs and the sessions it has no use for back to the
+ * system, from a timer of its own, once a minute. Here that timer is made
+ * to fire every millisecond while a hundred connections send whole and
+ * partial messages, are closed in the middle of one, while a client that
+ * does not read lets thousands of bufs pile up to be sent, and while
+ * hundreds of connections are closed by the server from a callback, by
+ * its idle sweep and by their client. Nothing is lost, and pool and cache
+ * end up small again. The point of running it is the sanitizers: memory
+ * freed while something still uses it would show there.
  */
 # include <fcntl.h>
 # include <sys/socket.h>
@@ -20,11 +21,28 @@
 
 static nw_svr *svr;
 static int port;
-static uint32_t freed, shrinks;
+static uint32_t freed, shrinks, sessions_freed;
 static size_t echoed;
+static int byes;
+static double idle_for;
+
+static void on_open(nw_ses *ses)
+{
+    /* these are closed by the sweep of the server, if they say nothing */
+    if (idle_for > 0)
+        nw_svr_set_idle_timeout(svr, ses, idle_for);
+}
 
 static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 {
+    if (size == 4 && memcmp(data, "bye\n", 4) == 0) {
+        /* closed from its own callback, which then goes on reading its
+         * message, as a callback may */
+        nw_svr_close(svr, ses);
+        if (((char *)data)[0] == 'b' && ((char *)data)[3] == '\n')
+            byes++;
+        return;
+    }
     /* -1 when the client has left: the session is closed by then */
     if (nw_ses_send(ses, data, size) == 0)
         echoed += size;
@@ -43,11 +61,18 @@ static void on_error_msg(nw_ses *ses, const char *msg)
 static uint32_t minute_over(nw_svr *s)
 {
     nw_buf_pool *pool = s->buf_pool;
+    nw_cache *cache = s->ses_cache;
+    uint32_t min_bufs = NW_BUF_POOL_MIN_FREE, min_sessions = NW_CACHE_MIN_FREE;
     uint32_t before = pool->free;
+    uint32_t sessions_before = cache->free;
     s->shrink_timer.callback(&s->shrink_timer, s->shrink_timer.privdata);
     /* as many free bufs stay as there are in use, and not less than 64 */
-    CHECK(pool->free <= (pool->used > NW_BUF_POOL_MIN_FREE ? pool->used : NW_BUF_POOL_MIN_FREE));
-    CHECK(pool->free == before || pool->free >= NW_BUF_POOL_MIN_FREE);
+    CHECK(pool->free <= (pool->used > min_bufs ? pool->used : min_bufs));
+    CHECK(pool->free == before || pool->free >= min_bufs);
+    /* and the same for the sessions */
+    CHECK(cache->free <= (cache->used > min_sessions ? cache->used : min_sessions));
+    CHECK(cache->free == sessions_before || cache->free >= min_sessions);
+    sessions_freed += sessions_before - cache->free;
     return before - pool->free;
 }
 
@@ -63,7 +88,7 @@ static int with_timer;
 static void on_worker(nw_hub *hub, void *data, size_t size)
 {
     nw_svr *mine = nw_hub_svr(hub);
-    if (mine && nw_timer_active(&mine->shrink_timer) && mine->shrink_timer.interval == 60.0)
+    if (mine && nw_timer_active(&mine->shrink_timer) && (UT_SHRINK_ALWAYS || mine->shrink_timer.interval == 60.0))
         __sync_fetch_and_add(&with_timer, 1);
 }
 
@@ -126,6 +151,7 @@ int main(void)
     st.decode_pkg = ut_line_decode;
     st.on_recv_pkg = on_recv_pkg;
     st.on_error_msg = on_error_msg;
+    st.on_open = on_open;
 
     /* a server has the timer from the moment it is created, set to a
      * minute. the loop does not run for its sake: with nothing else to
@@ -140,7 +166,8 @@ int main(void)
     nw_svr *idle = nw_svr_create(&cfg, &st, NULL);
     CHECK(idle != NULL);
     CHECK(nw_timer_active(&idle->shrink_timer));
-    CHECK_EQ(idle->shrink_timer.interval, 60.0);
+    if (!UT_SHRINK_ALWAYS)
+        CHECK_EQ(idle->shrink_timer.interval, 60.0);
     double begin = ev_time();
     nw_loop_run();
     CHECK(ev_time() - begin < 1.0);
@@ -198,8 +225,11 @@ int main(void)
     for (int i = 0; i < 400 && pool->used > 0; ++i)
         ut_run_for(0.005);
     CHECK_EQ(pool->used, 0);
-    CHECK_EQ(pool->free, CLIENTS);
-    CHECK_EQ(minute_over(svr), CLIENTS - NW_BUF_POOL_MIN_FREE);
+    if (!UT_SHRINK_ALWAYS) {
+        CHECK_EQ(pool->free, CLIENTS);
+        CHECK_EQ(minute_over(svr), CLIENTS - NW_BUF_POOL_MIN_FREE);
+    }
+    minute_over(svr);
     CHECK_EQ(pool->free, NW_BUF_POOL_MIN_FREE);
     for (int i = 0; i < CLIENTS; ++i)
         CHECK_EQ(drain(fds[i]), 15);
@@ -286,16 +316,87 @@ int main(void)
     ut_run_for(0.02);
     CHECK_EQ(pool->used, 0);
     CHECK(pool->free <= NW_BUF_POOL_MIN_FREE);
+
+    /*
+     * now the sessions. three times, three hundred connections more: a
+     * hundred that say bye and are closed by the server inside the
+     * callback, a hundred that say nothing and are closed by its idle
+     * sweep, a hundred that leave by themselves. each way, the library
+     * still looks at a session after it was closed and given back
+     */
+    nw_cache *cache = svr->ses_cache;
+    uint32_t most_sessions = 0;
+    for (int round = 0; round < 3; ++round) {
+        enum { EXTRA = 300 };
+        int extra[EXTRA];
+        idle_for = 0;
+        for (int i = 0; i < 200; ++i)
+            extra[i] = knock();
+        for (int i = 0; i < 400 && svr->ses_count < CLIENTS + 200; ++i)
+            ut_run_for(0.005);
+        idle_for = 0.06;
+        for (int i = 200; i < EXTRA; ++i)
+            extra[i] = knock();
+        for (int i = 0; i < 400 && cache->used < CLIENTS + EXTRA && svr->ses_count >= CLIENTS + 200; ++i)
+            ut_run_for(0.002);
+        if (cache->used > most_sessions)
+            most_sessions = cache->used;
+        for (int i = 0; i < 100; ++i)
+            push(extra[i], "bye\n", 4);
+        for (int i = 100; i < 200; ++i)
+            close(extra[i]);
+        for (int i = 0; i < 1000 && svr->ses_count > CLIENTS; ++i)
+            ut_run_for(0.005);
+        CHECK_EQ(svr->ses_count, CLIENTS);
+        CHECK_EQ(cache->used, CLIENTS);
+        for (int i = 0; i < EXTRA; ++i) {
+            if (i < 100 || i >= 200)
+                close(extra[i]);
+        }
+        ut_run_for(0.01);
+        /* what stays is what the connections that are left need */
+        CHECK(cache->free <= (CLIENTS > NW_CACHE_MIN_FREE ? CLIENTS : NW_CACHE_MIN_FREE));
+    }
+    idle_for = 0;
+    CHECK_EQ(byes, 300);
+    CHECK(most_sessions > CLIENTS + 250);
+    /* the hundred of the beginning still work */
+    for (int i = 0; i < CLIENTS; ++i) {
+        push(fds[i], "still here\n", 11);
+        sent[i] += 11;
+    }
+    for (int n = 0; n < 1000; ++n) {
+        bool done = true;
+        for (int i = 0; i < CLIENTS; ++i) {
+            received[i] += drain(fds[i]);
+            if (received[i] < sent[i])
+                done = false;
+        }
+        if (done)
+            break;
+        ut_run_for(0.005);
+    }
+    for (int i = 0; i < CLIENTS; ++i)
+        CHECK_EQ(received[i], sent[i]);
+
     fprintf(stderr, "shrunk %u times, %u bufs given back, %zu bytes echoed, %zu lost with closed connections\n",
             shrinks, freed, echoed, lost_with_connection);
-    CHECK(freed > peak / 2);
+    fprintf(stderr, "sessions at the most: %u, given back: %u\n", most_sessions, sessions_freed);
+    if (!UT_SHRINK_ALWAYS) {
+        CHECK(freed > peak / 2);
+        CHECK(sessions_freed > 500);
+    }
     CHECK(shrinks > 100);
 
-    nw_timer_stop(&timer);
     for (int i = 0; i < CLIENTS; ++i)
         close(fds[i]);
-    ut_run_for(0.05);
+    for (int i = 0; i < 400 && svr->ses_count > 0; ++i)
+        ut_run_for(0.005);
     CHECK_EQ(svr->ses_count, 0);
+    ut_run_for(0.01);
+    CHECK_EQ(cache->used, 0);
+    CHECK(cache->free <= NW_CACHE_MIN_FREE);
+    nw_timer_stop(&timer);
     nw_svr_release(svr);
     nw_loop_release();
     return 0;

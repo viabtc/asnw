@@ -7,6 +7,9 @@
 #                         reproducers for open bugs (unittest/kb_*.c), if any
 #   make check-tsan       unit tests under ThreadSanitizer
 #   make check-valgrind   unit tests under valgrind memcheck
+#   make check-shrink     unit tests under AddressSanitizer, with servers
+#                         that give their free bufs and sessions back every
+#                         millisecond, all of them, instead of once a minute
 #   make coverage         run the tests in a coverage build, print line
 #                         coverage per source file
 #   make lint             gcc -Wextra and cppcheck over the library
@@ -25,9 +28,13 @@ CFLAGS_release := -O2
 CFLAGS_asan    := -O1 -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined
 CFLAGS_tsan    := -O1 -fno-omit-frame-pointer -fsanitize=thread
 CFLAGS_cov     := -O0 --coverage
+# what a server does once a minute, done all the time and without a floor:
+# memory that is given back and still used somewhere does not stay hidden
+CFLAGS_shrink  := $(CFLAGS_asan) -DNW_SVR_SHRINK_INTERVAL=0.001 -DNW_BUF_POOL_MIN_FREE=0 -DNW_CACHE_MIN_FREE=0
 LDFLAGS_asan   := -fsanitize=address,undefined
 LDFLAGS_tsan   := -fsanitize=thread
 LDFLAGS_cov    := --coverage
+LDFLAGS_shrink := $(LDFLAGS_asan)
 
 CFLAGS  := $(CFLAGS_COMMON) $(CFLAGS_$(VARIANT))
 LDFLAGS := $(LDFLAGS_$(VARIANT))
@@ -47,7 +54,7 @@ EXAMPLES    := $(patsubst %.c,$(B)/%,$(EXAMPLE_SRC))
 UT_SRC := $(wildcard unittest/*.c)
 UT_BIN := $(patsubst %.c,$(B)/%,$(UT_SRC))
 
-.PHONY: all lib examples tests check check-asan check-tsan check-valgrind coverage lint clean
+.PHONY: all lib examples tests check check-asan check-tsan check-valgrind coverage lint clean check-shrink
 .SECONDARY:
 
 all: lib examples tests
@@ -79,6 +86,9 @@ check-tsan:
 
 check-valgrind: tests
 	@unittest/run.sh $(B) valgrind $(T)
+
+check-shrink:
+	@$(MAKE) --no-print-directory VARIANT=shrink check
 
 coverage:
 	@find build/cov -name '*.gcda' -delete 2>/dev/null || true

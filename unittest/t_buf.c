@@ -113,6 +113,35 @@ int main(void)
     CHECK_EQ(cache->free, 200);
     CHECK(nw_cache_alloc(cache) == objs[199]);
     nw_cache_free(cache, objs[199]);
+
+    /* nw_cache_shrink, the same as nw_buf_pool_shrink: the caller says how
+     * many free objects stay, and the minimum stays whatever it says */
+    CHECK_EQ(cache->free, 200);
+    CHECK_EQ(nw_cache_shrink(cache, 150), 50);
+    CHECK_EQ(cache->free, 150);
+    CHECK_EQ(nw_cache_shrink(cache, 150), 0);
+    CHECK_EQ(nw_cache_shrink(cache, 1000), 0);
+    CHECK_EQ(nw_cache_shrink(cache, 0), 150 - NW_CACHE_MIN_FREE);
+    CHECK_EQ(cache->free, NW_CACHE_MIN_FREE);
+    CHECK_EQ(nw_cache_shrink(cache, 10), 0);
+    CHECK_EQ(cache->used, 0);
+    /* objects in use are not its business */
+    for (int i = 0; i < 100; ++i)
+        CHECK((objs[i] = nw_cache_alloc(cache)) != NULL);
+    CHECK_EQ(cache->free, 0);
+    CHECK_EQ(nw_cache_shrink(cache, 0), 0);
+    CHECK_EQ(cache->used, 100);
+    for (int i = 0; i < 100; ++i) {
+        memset(objs[i], 0x5a, 32);              /* still ours to write to */
+        nw_cache_free(cache, objs[i]);
+    }
+    CHECK_EQ(nw_cache_shrink(cache, 80), 20);
+    CHECK_EQ(cache->free, 80);
+    /* and the cache goes on as before */
+    void *obj = nw_cache_alloc(cache);
+    CHECK(obj != NULL);
+    CHECK_EQ(cache->free, 79);
+    nw_cache_free(cache, obj);
     nw_cache_release(cache);
 
     return 0;
