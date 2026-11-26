@@ -5,6 +5,10 @@ asnw is an asynchronous network library in C on top of libev
 dependencies are libev and pthread. Link with `-lasnw -lev -lpthread`, or
 compile the `.c` files of this directory into the program.
 
+It is designed for servers that run as long-lived processes: daemons that
+are started once and stay up, not programs that start, do one thing and
+exit.
+
 **The headers are the documentation.** Each `nw_*.h` starts with a comment
 that explains the module, and every callback and function is described
 where it is declared. Read the header of a module before using or changing
