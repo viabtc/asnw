@@ -72,8 +72,9 @@ int nw_sock_set_mode(nw_addr_t *addr, mode_t mode);
  *   seqpacket   unix socket path    SOCK_SEQPACKET
  *
  * the protocol is case insensitive. the ip is numeric, names are not
- * resolved. ipv6 is written [ip]:port (a bare ip:port is accepted too, the
- * port is what follows the last colon). the port is decimal, 0 to 65535.
+ * resolved (a client can be given one, see nw_clt_cfg_parse). ipv6 is
+ * written [ip]:port (a bare ip:port is accepted too, the port is what
+ * follows the last colon). the port is decimal, 0 to 65535.
  *
  * example: tcp@127.0.0.1:3333
  *          tcp@[::1]:3333

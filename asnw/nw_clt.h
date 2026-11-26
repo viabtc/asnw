@@ -21,7 +21,7 @@
  * again by itself whenever the connection is lost or can't be established.
  *
  * usage:
- *   fill a nw_clt_cfg (address via nw_sock_cfg_parse) and a nw_clt_type
+ *   fill a nw_clt_cfg (address via nw_clt_cfg_parse) and a nw_clt_type
  *   (callbacks, memset it to 0 first), then
  *   nw_clt_create -> nw_clt_start -> nw_loop_run ... -> nw_clt_release
  *   send with nw_ses_send(&clt->ses, data, size)
@@ -40,7 +40,15 @@
  * on_close) and repeated reconnect_timeout later, starting with a fresh
  * look at the name. a name that can't be resolved is a failed attempt as
  * well, reported through on_error_msg and on_close. the callbacks see the
- * address in use in ses->peer_addr.
+ * address in use in ses->peer_addr; it always comes from the lookup, a
+ * change made to it in on_close is lost.
+ *
+ * a dgram client has no connection to lose, so its name is resolved once,
+ * when the client is started: it sends to the first address until
+ * nw_clt_start is called again, wherever the name points by then. it can't
+ * send before the lookup is done, on_connect(true) tells when. a lookup
+ * that fails is reported through on_error_msg only, and repeated
+ * reconnect_timeout later.
  *
  * stream and seqpacket clients
  *
@@ -54,9 +62,12 @@
  *
  * there is no connection: the client is usable right after nw_clt_start,
  * on_connect is not called (and on_close only by nw_clt_close), and
- * nothing tells whether the server is there. it always sends to the configured addr. udp datagrams
- * arriving from any other address are dropped, unless the configured addr
- * is a broadcast, multicast or wildcard address. a unix dgram client binds
+ * nothing tells whether the server is there. the exception is a server
+ * given by name, see above: the client is usable once the name is
+ * resolved, and on_connect(true) is called then. it always sends to the
+ * configured addr, or to the one its name gave. udp datagrams arriving
+ * from any other address are dropped, unless that addr is a broadcast,
+ * multicast or wildcard address. a unix dgram client binds
  * a socket file of its own under /tmp so that the server can reply, and
  * removes it on close.
  */
@@ -117,7 +128,8 @@ typedef struct nw_clt_type {
      * called once each time the connection is lost, a connect attempt
      * fails, or nw_clt_close is called. the place to fail the requests that
      * were waiting for a reply, or to pick another server by changing
-     * ses->peer_addr.
+     * ses->peer_addr (not when the server was given by name: the address
+     * then comes from the lookup).
      * return > 0 to connect again at once (on the next turn of the loop),
      * anything else to wait reconnect_timeout first. the return value is
      * ignored for nw_clt_close.
@@ -136,7 +148,10 @@ typedef struct nw_clt_type {
      * called when a connect attempt ends. result true: connected, the
      * client can send. result false: failed, errno holds the reason;
      * on_close is called next and the client tries again. an attempt that
-     * times out is reported through on_close only */
+     * times out is reported through on_close only. by name, an attempt is
+     * all the addresses of the name: false comes once, after the last one.
+     * a dgram client is only told, with true, when its server was given by
+     * name: the lookup is done */
     void (*on_connect)(nw_ses *ses, bool result);
     /* must
      *
@@ -213,7 +228,8 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata);
  * connection and starts over.
  * return 0 once the client is under way: also when the first attempt
  * failed on the spot, since it will be retried. return -1 if no socket
- * could be created or bound; nothing is retried then */
+ * could be created or bound or, by name, the lookup could not be started;
+ * nothing is retried then */
 int nw_clt_start(nw_clt *clt);
 
 /* close the connection and stay closed: on_close is called, pending data
@@ -225,7 +241,8 @@ int nw_clt_close(nw_clt *clt);
 void nw_clt_release(nw_clt *clt);
 
 /* can the client send right now? stream, seqpacket: the connection is
- * established. dgram: the client is started */
+ * established. dgram: the client is started and, by name, its lookup is
+ * done */
 bool nw_clt_connected(nw_clt *clt);
 
 # endif
