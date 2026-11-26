@@ -19,9 +19,9 @@
  *
  * the life of a job:
  *   any thread      nw_job_add(job, id, request)
- *   worker thread   on_job(entry, privdata)      do the work, set entry->reply
+ *   worker thread   on_job(entry, privdata)      do the work, set entry->result
  *   loop thread     on_finish(entry)             use the result
- *   loop thread     on_cleanup(entry)            free request and reply
+ *   loop thread     on_cleanup(entry)            free request and result
  *
  * jobs are started in the order they were added, but with more than one
  * worker they may finish in any order.
@@ -47,7 +47,7 @@ typedef struct nw_job_entry {
     /* the request given to nw_job_add */
     void *request;
     /* the result, set by on_job. NULL until then */
-    void *reply;
+    void *result;
     struct nw_job_entry *next;
 } nw_job_entry;
 
@@ -61,20 +61,20 @@ typedef struct nw_job_type {
     /* must
      *
      * do the work, on a worker thread. read entry->request, store the
-     * result in entry->reply. privdata is what on_init returned for this
+     * result in entry->result. privdata is what on_init returned for this
      * worker, NULL without on_init */
     void (*on_job)(nw_job_entry *entry, void *privdata);
     /* optional
      *
-     * called on the loop thread when a job is done, to use entry->reply.
+     * called on the loop thread when a job is done, to use entry->result.
      * the entry is only valid during the call */
     void (*on_finish)(nw_job_entry *entry);
     /* optional
      *
      * called on the loop thread right after on_finish, to free
-     * entry->request and entry->reply. kept apart from on_finish because
+     * entry->request and entry->result. kept apart from on_finish because
      * it is also called, alone, for the jobs that nw_job_release drops:
-     * entry->reply may then be NULL */
+     * entry->result may then be NULL */
     void (*on_cleanup)(nw_job_entry *entry);
     /* optional
      *
@@ -98,9 +98,9 @@ typedef struct nw_job {
     nw_job_entry *request_head;
     nw_job_entry *request_tail;
     /* jobs done, waiting for the loop thread, which wakeup calls */
-    pthread_mutex_t reply_lock;
-    nw_job_entry *reply_head;
-    nw_job_entry *reply_tail;
+    pthread_mutex_t result_lock;
+    nw_job_entry *result_head;
+    nw_job_entry *result_tail;
     ev_async wakeup;
 } nw_job;
 
@@ -119,7 +119,7 @@ int nw_job_add(nw_job *job, uint64_t id, void *request);
 /* stop the workers and free the pool. it blocks until the jobs being
  * processed right now are done. jobs still queued are not run, and results
  * not delivered yet are not passed to on_finish; on_cleanup is called for
- * each of them so that request and reply can be freed. call it from the
+ * each of them so that request and result can be freed. call it from the
  * loop thread, not from a callback of this pool, and only when no other
  * thread can call nw_job_add any more (release the hub first) */
 void nw_job_release(nw_job *job);

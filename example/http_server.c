@@ -31,7 +31,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
 
     if (strcmp(req->path, "/") == 0) {
         const char *body = "hello, this is asnw\n";
-        nw_http_reply_text(ses, 200, "text/plain", body, strlen(body));
+        nw_http_reply_body(ses, 200, "text/plain", body, strlen(body));
     } else if (strcmp(req->path, "/echo") == 0) {
         /* send the request body back, with its content type */
         const char *type = nw_http_get_header(req, "Content-Type");
@@ -44,7 +44,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         nw_http_reply(ses, &rsp);
     } else {
         const char *body = "no such page\n";
-        nw_http_reply_text(ses, 404, "text/plain", body, strlen(body));
+        nw_http_reply_body(ses, 404, "text/plain", body, strlen(body));
     }
 }
 

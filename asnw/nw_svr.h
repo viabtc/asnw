@@ -222,8 +222,8 @@ typedef struct nw_svr_iterator {
 
 typedef struct nw_svr {
     /* the listening / bound sessions, one per bind, in cfg order */
-    uint32_t svr_count;
-    nw_ses *svr_list;
+    uint32_t bind_count;
+    nw_ses *bind_list;
     nw_svr_type type;
     nw_buf_pool *buf_pool;
     nw_cache *clt_cache;

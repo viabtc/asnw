@@ -123,7 +123,7 @@ static void svr_on_recv_pkg(nw_ses *ses, void *data, size_t size)
     }
 }
 
-/* nw_hub_post: runs on the worker asked for, with the data given */
+/* nw_hub_run: runs on the worker asked for, with the data given */
 static int posted[THREADS], posted_all, posted_inline;
 
 static void on_post(nw_hub *h, void *data, size_t size)
@@ -148,9 +148,9 @@ static void on_post_empty(nw_hub *h, void *data, size_t size)
     /* a worker asking itself is served at once */
     int before = GET(posted[nw_hub_index(h)]);
     int me = nw_hub_index(h);
-    if (nw_hub_post(h, me, on_post, &me, sizeof(me)) != 0 || GET(posted[me]) != before + 1)
+    if (nw_hub_run(h, me, on_post, &me, sizeof(me)) != 0 || GET(posted[me]) != before + 1)
         ADD(wrong_thread);
-    nw_hub_post_all(h, on_post_all, "hello", 5);
+    nw_hub_run_all(h, on_post_all, "hello", 5);
     ADD(posted_inline);
 }
 
@@ -314,15 +314,15 @@ int main(void)
     CHECK_EQ(nw_hub_start(hub), 0);
     CHECK_EQ(nw_hub_index(hub), -1);        /* this is not a worker */
     CHECK(nw_hub_svr(hub) == NULL);
-    CHECK(nw_hub_of(&hub->acceptor->svr_list[1]) == hub);
+    CHECK(nw_hub_of(&hub->acceptor->bind_list[1]) == hub);
     CHECK(hub->acceptor->privdata == &hub);
 
     /* a function of ours on a worker, and on all of them */
     for (int i = 0; i < THREADS; ++i)
-        CHECK_EQ(nw_hub_post(hub, i, on_post, &i, sizeof(i)), 0);
-    CHECK_EQ(nw_hub_post(hub, THREADS, on_post, NULL, 0), -1);
-    CHECK_EQ(nw_hub_post_all(hub, on_post_all, "hello", 5), 0);
-    CHECK_EQ(nw_hub_post(hub, 1, on_post_empty, NULL, 0), 0);
+        CHECK_EQ(nw_hub_run(hub, i, on_post, &i, sizeof(i)), 0);
+    CHECK_EQ(nw_hub_run(hub, THREADS, on_post, NULL, 0), -1);
+    CHECK_EQ(nw_hub_run_all(hub, on_post_all, "hello", 5), 0);
+    CHECK_EQ(nw_hub_run(hub, 1, on_post_empty, NULL, 0), 0);
     for (int i = 0; i < 1000 && GET(posted_all) < 2 * THREADS; ++i)
         usleep(1000);
     for (int i = 0; i < THREADS; ++i)
@@ -444,7 +444,7 @@ int main(void)
     CHECK(hub != NULL);
     CHECK_EQ(nw_hub_start(hub), 0);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(hub->acceptor->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(hub->acceptor->bind_list[0].sockfd, &addr), 0);
     int fds[4];
     for (int i = 0; i < 4; ++i) {
         fds[i] = socket(AF_INET, SOCK_STREAM, 0);

@@ -93,7 +93,7 @@ static void on_state_timeout(nw_state_entry *entry)
 static void on_job(nw_job_entry *entry, void *privdata)
 {
     usleep(1000);
-    entry->reply = entry->request;
+    entry->result = entry->request;
 }
 
 static void on_job_finish(nw_job_entry *entry)
@@ -168,7 +168,7 @@ static void *run(void *arg)
     CHECK(w->loop != NULL);
 
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(w->svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(w->svr->bind_list[0].sockfd, &addr), 0);
     snprintf(cfg, sizeof(cfg), "tcp@%s", nw_sock_human_addr(&addr));
     snprintf(w->addr_text, sizeof(w->addr_text), "%s", nw_sock_human_addr(&addr));
 
@@ -229,7 +229,7 @@ static void *run(void *arg)
     w->rsvr = rpc_svr_create(&rscfg, &rst);
     CHECK(w->rsvr != NULL);
     CHECK_EQ(rpc_svr_start(w->rsvr), 0);
-    CHECK_EQ(nw_sock_host_addr(w->rsvr->raw_svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(w->rsvr->raw_svr->bind_list[0].sockfd, &addr), 0);
 
     rpc_clt_cfg rccfg;
     memset(&rccfg, 0, sizeof(rccfg));

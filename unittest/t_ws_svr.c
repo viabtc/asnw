@@ -131,7 +131,7 @@ static nw_ws_svr *start_server(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type)
     nw_ws_svr *s = nw_ws_svr_create(cfg, type, NULL);
     CHECK(s != NULL);
     CHECK_EQ(nw_ws_svr_start(s), 0);
-    CHECK_EQ(nw_sock_host_addr(s->raw_svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(s->raw_svr->bind_list[0].sockfd, &addr), 0);
     return s;
 }
 

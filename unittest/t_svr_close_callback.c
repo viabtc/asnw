@@ -93,7 +93,7 @@ static nw_svr *start(double idle_timeout)
     nw_svr *s = nw_svr_create(&cfg, &type, NULL);
     CHECK(s != NULL);
     CHECK_EQ(nw_svr_start(s), 0);
-    CHECK_EQ(nw_sock_host_addr(s->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(s->bind_list[0].sockfd, &addr), 0);
     return s;
 }
 

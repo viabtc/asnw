@@ -307,7 +307,7 @@ static int post_id_request(nw_ws_svr *svr, uint64_t id, uint8_t opcode, uint16_t
     request->code = code;
     if (size > 0)
         memcpy(request->data, data, size);
-    int ret = nw_hub_post(svr->hub, nw_hub_index_of(id), on_id_request, request, sizeof(struct id_request) + size);
+    int ret = nw_hub_run(svr->hub, nw_hub_index_of(id), on_id_request, request, sizeof(struct id_request) + size);
     free(request);
     return ret;
 }
@@ -373,7 +373,7 @@ static int broadcast(nw_ws_svr *svr, uint8_t opcode, const void *data, size_t si
 
     int ret;
     if (svr->hub) {
-        ret = nw_hub_post_all(svr->hub, on_broadcast, frame, frame_size);
+        ret = nw_hub_run_all(svr->hub, on_broadcast, frame, frame_size);
     } else {
         ret = broadcast_frame(svr->raw_svr, frame, frame_size);
     }

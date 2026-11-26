@@ -126,7 +126,7 @@ static nw_ws_svr *create(uint32_t threads)
     CHECK(svr->hub != NULL);
     CHECK(svr->front == NULL);
     CHECK_EQ(nw_ws_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &addr), 0);
     return svr;
 }
 

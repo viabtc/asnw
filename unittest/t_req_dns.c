@@ -71,7 +71,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
     char body[256];
     char *host = nw_http_get_header(req, "Host");
     int len = snprintf(body, sizeof(body), "%s for %s", req->path, host ? host : "-");
-    CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", body, len), 0);
+    CHECK_EQ(nw_http_reply_body(ses, 200, "text/plain", body, len), 0);
 }
 
 static int calls, last_error, last_status;
@@ -83,7 +83,7 @@ static void on_response(int error, nw_req_response *rsp, void *privdata)
     last_error = error;
     last_status = rsp->status;
     snprintf(last_body, sizeof(last_body), "%s", rsp->body);
-    snprintf(last_message, sizeof(last_message), "%s", rsp->message);
+    snprintf(last_message, sizeof(last_message), "%s", rsp->error_msg);
 }
 
 static void fetch(const char *host, double timeout)

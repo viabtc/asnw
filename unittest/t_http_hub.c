@@ -109,7 +109,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
 
     if (strcmp(req->path, "/where") == 0) {
         int len = snprintf(body, sizeof(body), "%llu %d", (unsigned long long)ses->id, nw_hub_index(svr->hub));
-        CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", body, len), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "text/plain", body, len), 0);
     } else if (strcmp(req->path, "/later") == 0) {
         /* the main thread answers */
         pthread_mutex_lock(&lock);
@@ -126,9 +126,9 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         work->value = atoi(req->query);
         CHECK_EQ(nw_job_add(shared_job, ses->id, work), 0);
     } else if (strcmp(req->path, "/echo") == 0) {
-        CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", req->body, req->body_size), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "application/octet-stream", req->body, req->body_size), 0);
     } else {
-        nw_http_reply_text(ses, 404, NULL, NULL, 0);
+        nw_http_reply_body(ses, 404, NULL, NULL, 0);
     }
 }
 
@@ -185,7 +185,7 @@ static nw_http_svr *create(uint32_t threads)
         return NULL;
     CHECK(svr->hub != NULL && svr->front == NULL);
     CHECK_EQ(nw_http_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &addr), 0);
     addr.addrlen = sizeof(addr.in);
     return svr;
 }

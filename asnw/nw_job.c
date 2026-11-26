@@ -39,14 +39,14 @@ static void *thread_routine(void *data)
         job->type.on_job(entry, privdata);
 
         entry->next = NULL;
-        pthread_mutex_lock(&job->reply_lock);
-        if (job->reply_tail) {
-            job->reply_tail->next = entry;
+        pthread_mutex_lock(&job->result_lock);
+        if (job->result_tail) {
+            job->result_tail->next = entry;
         } else {
-            job->reply_head = entry;
+            job->result_head = entry;
         }
-        job->reply_tail = entry;
-        pthread_mutex_unlock(&job->reply_lock);
+        job->result_tail = entry;
+        pthread_mutex_unlock(&job->result_lock);
         /* wake the loop thread. several of these before it gets there
          * amount to one wake-up */
         ev_async_send(job->loop, &job->wakeup);
@@ -59,11 +59,11 @@ static void *thread_routine(void *data)
 static void on_wakeup(struct ev_loop *loop, ev_async *watcher, int events)
 {
     nw_job *job = watcher->data;
-    pthread_mutex_lock(&job->reply_lock);
-    nw_job_entry *entry = job->reply_head;
-    job->reply_head = NULL;
-    job->reply_tail = NULL;
-    pthread_mutex_unlock(&job->reply_lock);
+    pthread_mutex_lock(&job->result_lock);
+    nw_job_entry *entry = job->result_head;
+    job->result_head = NULL;
+    job->result_tail = NULL;
+    pthread_mutex_unlock(&job->result_lock);
 
     nw_job_entry *done = entry;
     while (entry) {
@@ -88,7 +88,7 @@ static void on_wakeup(struct ev_loop *loop, ev_async *watcher, int events)
 static void nw_job_free(nw_job *job)
 {
     pthread_mutex_destroy(&job->request_lock);
-    pthread_mutex_destroy(&job->reply_lock);
+    pthread_mutex_destroy(&job->result_lock);
     pthread_cond_destroy(&job->notify);
     if (job->threads)
         free(job->threads);
@@ -97,7 +97,7 @@ static void nw_job_free(nw_job *job)
     free(job);
 }
 
-/* jobs that will never be finished: let the user free request/reply */
+/* jobs that will never be finished: let the user free request/result */
 static void drop_entries(nw_job *job, nw_job_entry *entry)
 {
     while (entry) {
@@ -126,7 +126,7 @@ nw_job *nw_job_create(nw_job_type *type, int thread_count)
     job->type = *type;
     job->loop = nw_default_loop;
     pthread_mutex_init(&job->request_lock, NULL);
-    pthread_mutex_init(&job->reply_lock, NULL);
+    pthread_mutex_init(&job->result_lock, NULL);
     pthread_cond_init(&job->notify, NULL);
     job->thread_count = thread_count;
     job->threads = calloc(job->thread_count, sizeof(pthread_t));
@@ -225,8 +225,8 @@ void nw_job_release(nw_job *job)
     /* all workers are gone, no lock needed. requests still queued and
      * replies not yet delivered get on_cleanup (not on_finish) */
     drop_entries(job, job->request_head);
-    drop_entries(job, job->reply_head);
+    drop_entries(job, job->result_head);
     job->request_head = job->request_tail = NULL;
-    job->reply_head = job->reply_tail = NULL;
+    job->result_head = job->result_tail = NULL;
     nw_job_free(job);
 }

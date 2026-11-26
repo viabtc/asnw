@@ -45,7 +45,7 @@
  * (the data is copied) and carried out a moment later.
  *
  * for anything else that has to happen on a certain worker there is
- * nw_hub_post, which runs a function of yours there.
+ * nw_hub_run, which runs a function of yours there.
  *
  * ids are unique in the whole hub, never 0 and never reused; the worker
  * of a connection can be told from its id.
@@ -56,7 +56,7 @@
 
 typedef struct nw_hub nw_hub;
 
-/* a function to run on a worker thread, see nw_hub_post. data is only
+/* a function to run on a worker thread, see nw_hub_run. data is only
  * valid during the call */
 typedef void (*nw_hub_callback)(nw_hub *hub, void *data, size_t size);
 
@@ -66,7 +66,7 @@ typedef struct nw_hub_cfg {
     nw_svr_cfg svr;
     /* number of worker threads, 1 to NW_HUB_MAX_THREADS */
     uint32_t thread_count;
-    /* max bytes of data (nw_hub_send, nw_hub_broadcast, nw_hub_post from
+    /* max bytes of data (nw_hub_send, nw_hub_broadcast, nw_hub_run from
      * other threads) that may wait for one worker; beyond it they fail. a worker
      * that is stuck in a callback can then not pile up memory without
      * end. 0 means no limit */
@@ -117,7 +117,7 @@ typedef struct nw_hub_type {
 struct nw_hub {
     uint32_t thread_count;
     struct nw_hub_worker *workers;
-    /* accepts, on the hub thread. its svr_list holds the listening
+    /* accepts, on the hub thread. its bind_list holds the listening
      * sessions */
     nw_svr *acceptor;
     nw_hub_type type;
@@ -191,12 +191,12 @@ int nw_hub_broadcast(nw_hub *hub, const void *data, size_t size);
  * the order they were made, this one and the four above alike.
  * return 0, or -1 if it could not be queued (no such worker, queue_limit,
  * out of memory) */
-int nw_hub_post(nw_hub *hub, uint32_t index, nw_hub_callback callback, const void *data, size_t size);
+int nw_hub_run(nw_hub *hub, uint32_t index, nw_hub_callback callback, const void *data, size_t size);
 
 /* run callback on every worker, each with the same copy of data, which
  * the callback must not change. return 0, or -1 if some worker could not
  * be reached; the others still run it */
-int nw_hub_post_all(nw_hub *hub, nw_hub_callback callback, const void *data, size_t size);
+int nw_hub_run_all(nw_hub *hub, nw_hub_callback callback, const void *data, size_t size);
 
 /*
  * for the callbacks

@@ -40,9 +40,9 @@ static void on_request(nw_ses *ses, nw_http_request *req)
     CHECK(nw_http_svr_of(ses) == svr);
 
     if (strcmp(req->path, "/hello") == 0) {
-        CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", "hello\n", 6), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "text/plain", "hello\n", 6), 0);
         /* a request is answered once */
-        CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", "again\n", 6), -1);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "text/plain", "again\n", 6), -1);
     } else if (strcmp(req->path, "/echo") == 0) {
         char count[16];
         snprintf(count, sizeof(count), "%u", req->header_count);
@@ -68,7 +68,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
     } else if (strcmp(req->path, "/never") == 0) {
         /* no answer */
     } else if (strcmp(req->path, "/big") == 0) {
-        CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", big_body, BIG_SIZE), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "application/octet-stream", big_body, BIG_SIZE), 0);
     } else if (strcmp(req->path, "/close") == 0) {
         nw_http_response rsp;
         memset(&rsp, 0, sizeof(rsp));
@@ -78,7 +78,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         rsp.body_size = 4;
         CHECK_EQ(nw_http_reply(ses, &rsp), 0);
     } else if (strcmp(req->path, "/204") == 0) {
-        CHECK_EQ(nw_http_reply_text(ses, 204, NULL, NULL, 0), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 204, NULL, NULL, 0), 0);
     } else if (strcmp(req->path, "/headers") == 0) {
         nw_http_response rsp;
         memset(&rsp, 0, sizeof(rsp));
@@ -103,7 +103,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         rsp.body_size = 2;
         CHECK_EQ(nw_http_reply(ses, &rsp), 0);
     } else {
-        CHECK_EQ(nw_http_reply_text(ses, 404, "text/plain", "no such page\n", 13), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 404, "text/plain", "no such page\n", 13), 0);
     }
 }
 
@@ -180,7 +180,7 @@ int main(void)
     svr = nw_http_svr_create(&cfg, &st, NULL);
     CHECK(svr != NULL);
     CHECK_EQ(nw_http_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->svr_list[0].sockfd, &tcp_addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &tcp_addr), 0);
 
     /* a GET, and a second one on the same connection */
     c = client_new(&tcp_addr);
@@ -446,7 +446,7 @@ int main(void)
     svr = nw_http_svr_create(&cfg, &st, NULL);
     CHECK(svr != NULL);
     CHECK_EQ(nw_http_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->svr_list[0].sockfd, &tcp_addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &tcp_addr), 0);
 
     struct client *slow = client_new(&tcp_addr);        /* never finishes its request */
     idle = client_new(&tcp_addr);                       /* connects and says nothing */

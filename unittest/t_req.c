@@ -38,7 +38,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         } else {
             quiet_gets++;
         }
-        CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", "noted", 5), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "text/plain", "noted", 5), 0);
         return;
     }
     if (strcmp(req->path, "/decode") == 0) {
@@ -46,17 +46,17 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         CHECK(req->query != NULL && strncmp(req->query, "v=", 2) == 0);
         int len = nw_http_url_decode(req->query + 2, strlen(req->query + 2), true);
         CHECK(len >= 0);
-        CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", req->query + 2, len), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "application/octet-stream", req->query + 2, len), 0);
         return;
     }
     if (strcmp(req->path, "/missing") == 0) {
-        CHECK_EQ(nw_http_reply_text(ses, 404, "text/plain", "nope", 4), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 404, "text/plain", "nope", 4), 0);
     } else if (strcmp(req->path, "/empty") == 0) {
-        CHECK_EQ(nw_http_reply_text(ses, 204, NULL, NULL, 0), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 204, NULL, NULL, 0), 0);
     } else if (strcmp(req->path, "/post/echo") == 0) {
         /* the body as it came */
         CHECK(strcmp(req->method, "POST") == 0);
-        CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", req->body, req->body_size), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "application/octet-stream", req->body, req->body_size), 0);
     } else if (strcmp(req->method, "POST") == 0) {
         char *type = nw_http_get_header(req, "Content-Type");
         char *length = nw_http_get_header(req, "Content-Length");
@@ -64,9 +64,9 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         int len = snprintf(body, sizeof(body), "POST path=%s query=%s host=%s type=%s length=%s body=%.*s",
                 req->path, req->query ? req->query : "", host ? host : "-", type ? type : "-",
                 length ? length : "-", (int)(req->body_size < 200 ? req->body_size : 200), (char *)req->body);
-        CHECK_EQ(nw_http_reply_text(ses, 200, "text/plain", body, len), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "text/plain", body, len), 0);
     } else if (strcmp(req->path, "/big") == 0) {
-        CHECK_EQ(nw_http_reply_text(ses, 200, "application/octet-stream", big, BIG_SIZE), 0);
+        CHECK_EQ(nw_http_reply_body(ses, 200, "application/octet-stream", big, BIG_SIZE), 0);
     } else {
         char *host = nw_http_get_header(req, "Host");
         char *agent = nw_http_get_header(req, "User-Agent");
@@ -183,9 +183,9 @@ static void on_response(int error, nw_req_response *rsp, void *privdata)
     r->headers = rsp->header_count;
     r->size = rsp->body_size;
     r->thread = pthread_self();
-    CHECK(rsp->body != NULL && rsp->message != NULL);
+    CHECK(rsp->body != NULL && rsp->error_msg != NULL);
     CHECK_EQ(rsp->body[rsp->body_size], 0);
-    CHECK((error != 0) == (rsp->message[0] != 0));
+    CHECK((error != 0) == (rsp->error_msg[0] != 0));
     if (error) {
         CHECK_EQ(rsp->status, 0);
         CHECK_EQ(rsp->body_size, 0);
@@ -193,7 +193,7 @@ static void on_response(int error, nw_req_response *rsp, void *privdata)
     }
     r->body = malloc(rsp->body_size + 1);
     memcpy(r->body, rsp->body, rsp->body_size + 1);
-    snprintf(r->message, sizeof(r->message), "%s", rsp->message);
+    snprintf(r->message, sizeof(r->message), "%s", rsp->error_msg);
     /* whatever the case of the name */
     const char *value = nw_req_get_header(rsp, "x-TEST");
     snprintf(r->x_test, sizeof(r->x_test), "%s", value ? value : "");

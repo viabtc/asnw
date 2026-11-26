@@ -75,7 +75,7 @@ int main(void)
 
     /* the flags of each kind of socket */
     for (int i = 0; i < 3; ++i) {
-        check_fd(svr->svr_list[i].sockfd, true);        /* listening */
+        check_fd(svr->bind_list[i].sockfd, true);        /* listening */
         check_fd(clts[i]->ses.sockfd, true);            /* connecting side */
     }
     nw_svr_iterator iter;
@@ -98,7 +98,7 @@ int main(void)
     /* a connection added from outside is made so */
     int outside = socket(AF_INET, SOCK_STREAM, 0);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in in;
     memset(&in, 0, sizeof(in));

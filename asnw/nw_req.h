@@ -21,7 +21,7 @@
  *     static void on_config(int error, nw_req_response *rsp, void *privdata)
  *     {
  *         if (error)
- *             log("config: %s", rsp->message);
+ *             log("config: %s", rsp->error_msg);
  *         else if (rsp->status != 200)
  *             log("config: status %d", rsp->status);
  *         else
@@ -77,13 +77,13 @@ typedef struct nw_req_response {
     char *body;
     size_t body_size;
     /* when error is set: what went wrong, for the log. "" otherwise */
-    const char *message;
+    const char *error_msg;
 } nw_req_response;
 
 /*
  * called on the loop thread, once for each request that was not cancelled.
  * error is 0 when a response was received, whatever its status, or one of
- * NW_REQ_ERR_...: then rsp only holds a message. rsp and all it points to
+ * NW_REQ_ERR_...: then rsp only holds error_msg. rsp and all it points to
  * are gone when the callback returns: copy what you keep.
  */
 typedef void (*nw_req_callback)(int error, nw_req_response *rsp, void *privdata);

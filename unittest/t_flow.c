@@ -149,7 +149,7 @@ int main(void)
     svr = nw_svr_create(&cfg, &type, NULL);
     CHECK(svr != NULL);
     CHECK_EQ(nw_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
 
     static char chunk[CHUNK];
     uint32_t sent_sum = 0, got_sum = 0;

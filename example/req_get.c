@@ -14,7 +14,7 @@ static int result = 1;
 static void on_response(int error, nw_req_response *rsp, void *privdata)
 {
     if (error) {
-        fprintf(stderr, "error %d: %s\n", error, rsp->message);
+        fprintf(stderr, "error %d: %s\n", error, rsp->error_msg);
     } else {
         fprintf(stderr, "status: %d\n", rsp->status);
         for (uint32_t i = 0; i < rsp->header_count; ++i)

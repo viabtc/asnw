@@ -28,7 +28,7 @@ static void look(nw_ses *ses)
 static void on_request(nw_ses *ses, nw_http_request *req)
 {
     look(ses);
-    nw_http_reply_text(ses, 200, "text/plain", "ok", 2);
+    nw_http_reply_body(ses, 200, "text/plain", "ok", 2);
 }
 
 static int on_upgrade(nw_ses *ses, nw_http_request *req)
@@ -92,7 +92,7 @@ int main(void)
         nw_http_svr *http = nw_http_svr_create(&hc, &ht, NULL);
         CHECK(http != NULL);
         CHECK_EQ(nw_http_svr_start(http), 0);
-        int fd = knock(&http->raw_svr->svr_list[0], "GET / HTTP/1.1\r\nHost: test\r\n\r\n");
+        int fd = knock(&http->raw_svr->bind_list[0], "GET / HTTP/1.1\r\nHost: test\r\n\r\n");
         check(set);
         close(fd);
         nw_http_svr_release(http);
@@ -111,7 +111,7 @@ int main(void)
         nw_ws_svr *ws = nw_ws_svr_create(&wc, &wt, NULL);
         CHECK(ws != NULL);
         CHECK_EQ(nw_ws_svr_start(ws), 0);
-        fd = knock(&ws->raw_svr->svr_list[0],
+        fd = knock(&ws->raw_svr->bind_list[0],
                 "GET /chat HTTP/1.1\r\nHost: test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                 "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
         check(set);

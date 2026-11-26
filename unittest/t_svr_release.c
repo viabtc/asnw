@@ -48,7 +48,7 @@ int main(void)
     /* three live connections, one of them with a half received message */
     svr = ut_svr("tcp@127.0.0.1:0", &type, 1024, NULL);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
     int fds[3];
     for (int i = 0; i < 3; ++i) {
         fds[i] = socket(AF_INET, SOCK_STREAM, 0);

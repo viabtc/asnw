@@ -15,7 +15,7 @@ static char *big_body;
 static void on_request(nw_ses *ses, nw_http_request *req)
 {
     if (strcmp(req->path, "/hello") == 0) {
-        nw_http_reply_text(ses, 200, "text/plain", "hello\n", 6);
+        nw_http_reply_body(ses, 200, "text/plain", "hello\n", 6);
     } else if (strcmp(req->path, "/echo") == 0) {
         const char *agent = nw_http_get_header(req, "user-agent");
         nw_http_response rsp;
@@ -29,9 +29,9 @@ static void on_request(nw_ses *ses, nw_http_request *req)
         rsp.body_size = req->body_size;
         nw_http_reply(ses, &rsp);
     } else if (strcmp(req->path, "/big") == 0) {
-        nw_http_reply_text(ses, 200, "application/octet-stream", big_body, BIG_SIZE);
+        nw_http_reply_body(ses, 200, "application/octet-stream", big_body, BIG_SIZE);
     } else {
-        nw_http_reply_text(ses, 404, "text/plain", "no such page\n", 13);
+        nw_http_reply_body(ses, 404, "text/plain", "no such page\n", 13);
     }
 }
 

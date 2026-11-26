@@ -40,7 +40,7 @@ struct nw_req {
 
     /* the result: written by the worker before it hands the request back */
     int error;
-    char message[256];
+    char error_msg[256];
     char *data;
     size_t len;
     size_t cap;
@@ -72,7 +72,7 @@ static int fail(struct nw_req *req, int error, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(req->message, sizeof(req->message), fmt, ap);
+    vsnprintf(req->error_msg, sizeof(req->error_msg), fmt, ap);
     va_end(ap);
     req->error = error;
     return -1;
@@ -450,7 +450,7 @@ static void on_finish(nw_job_entry *entry)
     nw_req_response *rsp = &req->rsp;
     if (req->error) {
         rsp->body = "";
-        rsp->message = req->message;
+        rsp->error_msg = req->error_msg;
     } else {
         rsp->status = req->status;
         rsp->header_count = req->header_count;
@@ -461,7 +461,7 @@ static void on_finish(nw_job_entry *entry)
         rsp->body = req->data + req->head_size;
         rsp->body_size = req->body_size;
         rsp->body[rsp->body_size] = '\0';
-        rsp->message = "";
+        rsp->error_msg = "";
     }
     req->callback(req->error, rsp, req->privdata);
 }

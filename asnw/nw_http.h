@@ -326,6 +326,6 @@ int nw_http_reply_id(nw_http_svr *svr, uint64_t id, nw_http_response *rsp);
 
 /* shortcut for a response that is only a status and a body. content_type
  * may be NULL when there is no body */
-int nw_http_reply_text(nw_ses *ses, int status, const char *content_type, const void *body, size_t size);
+int nw_http_reply_body(nw_ses *ses, int status, const char *content_type, const void *body, size_t size);
 
 # endif

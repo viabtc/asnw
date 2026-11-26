@@ -82,7 +82,7 @@ int main(void)
 A client is the same with `nw_clt_cfg` (`nw_clt_cfg_parse` takes an
 address or a name), `nw_clt_type`, `nw_clt_create`, `nw_clt_start`. An
 HTTP server sets `on_request` in `nw_http_svr_type` and answers with
-`nw_http_reply_text` or `nw_http_reply`. Complete examples are in the
+`nw_http_reply_body` or `nw_http_reply`. Complete examples are in the
 `example/` directory of the repository: `echo_server.c`, `ping_clt.c`,
 `http_server.c`, `ws_server.c`, `hub_server.c`, `req_get.c`.
 

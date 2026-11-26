@@ -32,7 +32,7 @@ int main(void)
     type.on_recv_pkg = on_recv_pkg;
     svr = ut_svr("tcp@127.0.0.1:0", &type, 1024, NULL);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
 
     CHECK(nw_svr_get_clt(svr, 0) == NULL);
     CHECK(nw_svr_get_clt(svr, 1) == NULL);

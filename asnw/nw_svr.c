@@ -189,15 +189,15 @@ static void on_recv_fd(nw_ses *ses, int fd)
 /* the single place that frees a server; also used on a half built one */
 static void nw_svr_free(nw_svr *svr)
 {
-    if (svr->svr_list) {
-        for (uint32_t i = 0; i < svr->svr_count; ++i) {
-            nw_ses *ses = &svr->svr_list[i];
+    if (svr->bind_list) {
+        for (uint32_t i = 0; i < svr->bind_count; ++i) {
+            nw_ses *ses = &svr->bind_list[i];
             if (ses->write_buf != NULL) {
                 nw_ses_release(ses);
             }
             free(ses->host_addr);
         }
-        free(svr->svr_list);
+        free(svr->bind_list);
     }
     if (svr->clt_dict)
         nw_dict_release(svr->clt_dict);
@@ -300,9 +300,9 @@ int nw_svr_add_clt_fd(nw_svr *svr, int fd)
         return -1;
     }
     nw_ses *ses = NULL;
-    for (uint32_t i = 0; i < svr->svr_count; ++i) {
-        if (peer_addr.family == svr->svr_list[i].host_addr->family) {
-            ses = &svr->svr_list[i];
+    for (uint32_t i = 0; i < svr->bind_count; ++i) {
+        if (peer_addr.family == svr->bind_list[i].host_addr->family) {
+            ses = &svr->bind_list[i];
             break;
         }
     }
@@ -313,9 +313,9 @@ int nw_svr_add_clt_fd(nw_svr *svr, int fd)
 
 int nw_svr_add_accepted_fd(nw_svr *svr, uint32_t bind_index, int fd, nw_addr *peer_addr)
 {
-    if (bind_index >= svr->svr_count)
+    if (bind_index >= svr->bind_count)
         return -1;
-    nw_ses *ses = &svr->svr_list[bind_index];
+    nw_ses *ses = &svr->bind_list[bind_index];
     if (ses->sock_type == SOCK_DGRAM)
         return -1;
     return nw_svr_add_clt(ses, fd, peer_addr);
@@ -341,9 +341,9 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
         return NULL;
     memset(svr, 0, sizeof(nw_svr));
     svr->type = *type;
-    svr->svr_count = cfg->bind_count;
-    svr->svr_list = calloc(svr->svr_count, sizeof(nw_ses));
-    if (svr->svr_list == NULL) {
+    svr->bind_count = cfg->bind_count;
+    svr->bind_list = calloc(svr->bind_count, sizeof(nw_ses));
+    if (svr->bind_list == NULL) {
         nw_svr_free(svr);
         return NULL;
     }
@@ -367,8 +367,8 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
     svr->read_mem = cfg->read_mem;
     svr->write_mem = cfg->write_mem;
     svr->privdata = privdata;
-    for (uint32_t i = 0; i < svr->svr_count; ++i) {
-        nw_ses *ses = &svr->svr_list[i];
+    for (uint32_t i = 0; i < svr->bind_count; ++i) {
+        nw_ses *ses = &svr->bind_list[i];
         int sockfd = create_socket(cfg->bind_arr[i].addr.family, cfg->bind_arr[i].sock_type);
         if (sockfd < 0) {
             nw_svr_free(svr);
@@ -411,8 +411,8 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
 
 int nw_svr_start(nw_svr *svr)
 {
-    for (uint32_t i = 0; i < svr->svr_count; ++i) {
-        nw_ses *ses = &svr->svr_list[i];
+    for (uint32_t i = 0; i < svr->bind_count; ++i) {
+        nw_ses *ses = &svr->bind_list[i];
         if (nw_ses_bind(ses, ses->host_addr) < 0) {
             return -1;
         }
@@ -426,8 +426,8 @@ int nw_svr_start(nw_svr *svr)
 
 int nw_svr_stop(nw_svr *svr)
 {
-    for (uint32_t i = 0; i < svr->svr_count; ++i) {
-        if (nw_ses_stop(&svr->svr_list[i]) < 0) {
+    for (uint32_t i = 0; i < svr->bind_count; ++i) {
+        if (nw_ses_stop(&svr->bind_list[i]) < 0) {
             return -1;
         }
     }

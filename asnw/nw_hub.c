@@ -321,7 +321,7 @@ static int on_accept(nw_ses *ses, int sockfd, nw_addr *peer_addr)
     if (event == NULL)
         return -1;
     event->fd = sockfd;
-    event->bind_index = ses - hub->acceptor->svr_list;
+    event->bind_index = ses - hub->acceptor->bind_list;
     memcpy(event->data, peer_addr, sizeof(nw_addr));
 
     struct nw_hub_worker *worker = &hub->workers[hub->turn++ % hub->thread_count];
@@ -612,7 +612,7 @@ int nw_hub_broadcast(nw_hub *hub, const void *data, size_t size)
     return ret;
 }
 
-int nw_hub_post(nw_hub *hub, uint32_t index, nw_hub_callback callback, const void *data, size_t size)
+int nw_hub_run(nw_hub *hub, uint32_t index, nw_hub_callback callback, const void *data, size_t size)
 {
     if (index >= hub->thread_count)
         return -1;
@@ -644,7 +644,7 @@ int nw_hub_post(nw_hub *hub, uint32_t index, nw_hub_callback callback, const voi
     return 0;
 }
 
-int nw_hub_post_all(nw_hub *hub, nw_hub_callback callback, const void *data, size_t size)
+int nw_hub_run_all(nw_hub *hub, nw_hub_callback callback, const void *data, size_t size)
 {
     struct shared_data *shared = malloc(sizeof(struct shared_data) + size);
     if (shared == NULL)

@@ -14,7 +14,7 @@ static int cleanup_count;
 static void on_job(nw_job_entry *entry, void *privdata)
 {
     usleep(2000);
-    entry->reply = malloc(8);
+    entry->result = malloc(8);
 }
 
 static void on_finish(nw_job_entry *entry)
@@ -26,7 +26,7 @@ static void on_cleanup(nw_job_entry *entry)
 {
     cleanup_count++;
     free(entry->request);
-    free(entry->reply);
+    free(entry->result);
 }
 
 int main(void)

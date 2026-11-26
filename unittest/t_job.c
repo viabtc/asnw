@@ -24,16 +24,16 @@ static void on_job(nw_job_entry *entry, void *privdata)
     CHECK_EQ(pthread_sigmask(SIG_SETMASK, NULL, &blocked), 0);
     CHECK(sigismember(&blocked, SIGTERM) && sigismember(&blocked, SIGINT));
     long n = (long)entry->request;
-    entry->reply = (void *)(n * n);
+    entry->result = (void *)(n * n);
 }
 
 static void on_finish(nw_job_entry *entry)
 {
     CHECK(pthread_equal(pthread_self(), main_thread));
     long n = (long)entry->request;
-    CHECK_EQ((long)entry->reply, n * n);
+    CHECK_EQ((long)entry->result, n * n);
     CHECK(entry->id == ID_BASE + n + 1);
-    sum += (long)entry->reply;
+    sum += (long)entry->result;
     finish_count++;
 }
 

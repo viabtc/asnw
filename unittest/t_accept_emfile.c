@@ -37,7 +37,7 @@ int main(void)
     nw_svr *svr = ut_svr("tcp@127.0.0.1:0", &st, 1024, NULL);
 
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->svr_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     CHECK(fd >= 0);
     ut_run_for(0.01);                   /* let libev set up its own fds first */

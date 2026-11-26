@@ -769,7 +769,7 @@ static int post_reply(nw_http_svr *svr, uint64_t id, nw_http_response *rsp)
     if (rsp->body_size > 0)
         memcpy(p, rsp->body, rsp->body_size);
 
-    int ret = nw_hub_post(svr->hub, nw_hub_index_of(id), on_reply_request, request, size);
+    int ret = nw_hub_run(svr->hub, nw_hub_index_of(id), on_reply_request, request, size);
     free(request);
     return ret;
 }
@@ -789,7 +789,7 @@ int nw_http_reply_id(nw_http_svr *svr, uint64_t id, nw_http_response *rsp)
     return nw_http_reply(ses, rsp);
 }
 
-int nw_http_reply_text(nw_ses *ses, int status, const char *content_type, const void *body, size_t size)
+int nw_http_reply_body(nw_ses *ses, int status, const char *content_type, const void *body, size_t size)
 {
     nw_http_response rsp;
     rsp.status = status;

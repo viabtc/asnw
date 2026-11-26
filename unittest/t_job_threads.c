@@ -21,14 +21,14 @@ static int ran, finished, cleaned, follow_ups;
 static void on_job(nw_job_entry *entry, void *privdata)
 {
     __sync_fetch_and_add(&ran, 1);
-    entry->reply = (void *)(uintptr_t)(entry->id * 3 + 1);
+    entry->result = (void *)(uintptr_t)(entry->id * 3 + 1);
 }
 
 static void on_finish(nw_job_entry *entry)
 {
     CHECK(pthread_equal(pthread_self(), pool_thread));
     CHECK(entry->id < TOTAL);
-    CHECK_EQ((uintptr_t)entry->reply, entry->id * 3 + 1);
+    CHECK_EQ((uintptr_t)entry->result, entry->id * 3 + 1);
     CHECK_EQ((uintptr_t)entry->request, entry->id + 7);
     CHECK_EQ(seen[entry->id], 0);
     seen[entry->id] = 1;
