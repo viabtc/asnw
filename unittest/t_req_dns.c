@@ -105,11 +105,11 @@ int main(void)
     char text[256];
 
     static nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_http_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     nw_http_svr_type type;
     memset(&type, 0, sizeof(type));
     type.on_request = on_request;

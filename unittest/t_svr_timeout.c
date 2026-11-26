@@ -1,7 +1,7 @@
 /*
  * nw_svr timeouts and orderly close: the idle timeout of the cfg, a
  * timeout or a deadline per connection, the on_timeout hook, and
- * nw_svr_shutdown_clt getting the last message through.
+ * nw_svr_shutdown getting the last message through.
  */
 # include "common.h"
 
@@ -21,27 +21,27 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
     if (strncmp(s, "bye", 3) == 0) {
         /* a last word, then an orderly close */
         CHECK_EQ(nw_ses_send(ses, "goodbye\n", 8), 0);
-        nw_svr_shutdown_clt(svr, ses);
+        nw_svr_shutdown(svr, ses);
         CHECK(ses->closing);
         CHECK_EQ(nw_ses_send(ses, "too late\n", 9), -1);    /* nothing after that */
-        nw_svr_shutdown_clt(svr, ses);                      /* twice is harmless */
+        nw_svr_shutdown(svr, ses);                      /* twice is harmless */
     } else if (strncmp(s, "big", 3) == 0) {
         CHECK_EQ(nw_ses_send(ses, big, BIG_SIZE), 0);
-        nw_svr_shutdown_clt(svr, ses);
+        nw_svr_shutdown(svr, ses);
     } else if (strncmp(s, "slow", 4) == 0) {
-        nw_svr_set_clt_idle_timeout(svr, ses, 0);           /* this one may take its time */
+        nw_svr_set_idle_timeout(svr, ses, 0);           /* this one may take its time */
     } else if (strncmp(s, "quick", 5) == 0) {
-        nw_svr_set_clt_idle_timeout(svr, ses, 0.2);
+        nw_svr_set_idle_timeout(svr, ses, 0.2);
     } else if (strncmp(s, "deadline", 8) == 0) {
-        nw_svr_set_clt_deadline(svr, ses, 0.3);
+        nw_svr_set_deadline(svr, ses, 0.3);
     } else if (strncmp(s, "cancel", 6) == 0) {
-        nw_svr_set_clt_deadline(svr, ses, 0);
+        nw_svr_set_deadline(svr, ses, 0);
     } else {
         nw_ses_send(ses, data, size);
     }
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     close_count++;
 }
@@ -57,7 +57,7 @@ static void on_timeout(nw_ses *ses)
     last_silence = ev_now(nw_default_loop) - ses->active_time;
     if (!keep_on_timeout) {
         nw_ses_send(ses, "timed out\n", 10);
-        nw_svr_shutdown_clt(svr, ses);
+        nw_svr_shutdown(svr, ses);
     }
 }
 
@@ -107,25 +107,25 @@ static size_t read_all(int fd, char *out, size_t max, double timeout, bool *clos
 static nw_svr *start(double idle_timeout, bool with_hook)
 {
     static nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.max_pkg_size = 4096;
     cfg.idle_timeout = idle_timeout;
     nw_svr_type type;
     memset(&type, 0, sizeof(type));
     type.decode_pkg = ut_line_decode;
     type.on_recv_pkg = on_recv_pkg;
-    type.on_connection_close = on_connection_close;
+    type.on_close = on_close;
     type.on_error_msg = on_error_msg;
     if (with_hook)
         type.on_timeout = on_timeout;
     nw_svr *s = nw_svr_create(&cfg, &type, NULL);
     CHECK(s != NULL);
     CHECK_EQ(nw_svr_start(s), 0);
-    CHECK_EQ(nw_sock_host_addr(s->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(s->binds[0].sockfd, &addr), 0);
     return s;
 }
 
@@ -147,7 +147,7 @@ int main(void)
     svr = start(0, false);
     int fd = connect_to();
     ut_run_for(0.3);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     CHECK(!nw_timer_active(&svr->timer));
     CHECK_EQ(is_closed(fd), 0);
 
@@ -161,7 +161,7 @@ int main(void)
     CHECK_EQ(recv_count, 1);                            /* "more" was thrown away */
     close(fd);
     ut_run_for(0.05);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
     CHECK_EQ(close_count, 1);
 
     /* with far more queued than the socket takes at once: all of it is
@@ -178,9 +178,9 @@ int main(void)
     fd = connect_to();
     CHECK_EQ(write(fd, "bye\n", 4), 4);
     ut_run_for(0.5);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     ut_run_for(2.6);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
     close(fd);
 
     /* a deadline on one connection, set, cancelled, and set again */
@@ -199,7 +199,7 @@ int main(void)
     CHECK_EQ(is_closed(fd), 1);
     CHECK_EQ(error_count, errors + 1);                  /* reported, then closed */
     CHECK_EQ(is_closed(other), 0);                      /* nobody else is affected */
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     close(fd);
     close(other);
     ut_run_for(0.05);
@@ -227,7 +227,7 @@ int main(void)
     CHECK_EQ(is_closed(silent), 1);
     CHECK_EQ(is_closed(talking), 0);
     CHECK_EQ(is_closed(patient), 0);
-    CHECK_EQ(svr->clt_count, 2);
+    CHECK_EQ(svr->ses_count, 2);
     CHECK_EQ(close_count, 2);
     ut_run_for(0.7);                                    /* now talking falls silent too */
     CHECK_EQ(is_closed(talking), 1);
@@ -239,7 +239,7 @@ int main(void)
     ut_run_for(0.05);
     /* with no connection left the timer stops, and starts again when needed */
     ut_run_for(0.3);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
     CHECK(!nw_timer_active(&svr->timer));
     fd = connect_to();
     ut_run_for(0.05);
@@ -301,7 +301,7 @@ int main(void)
     CHECK(svr->timer_interval == 0.1);
     ut_run_for(0.5);
     CHECK_EQ(is_closed(quick_one), 1);                  /* it timed out and is gone */
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     ut_run_for(0.3);
     CHECK(svr->timer_interval == 1.0);                  /* back to once a second */
     /* a deadline does the same, and goes back when it is cancelled */
@@ -311,11 +311,11 @@ int main(void)
     CHECK_EQ(write(slow_one, "cancel\n", 7), 7);
     ut_run_for(0.4);
     CHECK(svr->timer_interval == 1.0);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     /* the last timeout is taken away: the timer stops */
     CHECK_EQ(write(slow_one, "slow\n", 5), 5);
     ut_run_for(1.3);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     CHECK(!nw_timer_active(&svr->timer));
     /* and starts again for the next one */
     CHECK_EQ(write(slow_one, "quick\n", 6), 6);

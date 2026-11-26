@@ -29,7 +29,7 @@
  * privdata of every nw_svr of a hub is the one given to nw_hub_create),
  * and every nw_svr function
  * can be used on it and on the connections of the same worker
- * (nw_ses_send, nw_svr_close_clt, nw_svr_shutdown_clt, the timeouts, the
+ * (nw_ses_send, nw_svr_close, nw_svr_shutdown, the timeouts, the
  * iterator ...). there are no locks to take.
  *
  * what is new is that connections on different workers cannot touch each
@@ -117,7 +117,7 @@ typedef struct nw_hub_type {
 struct nw_hub {
     uint32_t thread_count;
     struct nw_hub_worker *workers;
-    /* accepts, on the hub thread. its bind_list holds the listening
+    /* accepts, on the hub thread. its binds holds the listening
      * sessions */
     nw_svr *acceptor;
     nw_hub_type type;
@@ -150,7 +150,7 @@ int nw_hub_start(nw_hub *hub);
  * again */
 int nw_hub_stop(nw_hub *hub);
 
-/* close every connection (on_connection_close is called for each, on its
+/* close every connection (on_close is called for each, on its
  * worker), end the worker threads (on_thread_stop) and free the hub.
  * returns when all of that is done. no other thread may still be using
  * the hub. don't call it from a callback of the hub */
@@ -169,11 +169,11 @@ void nw_hub_release(nw_hub *hub);
  * by the time the worker gets to it, the data is dropped silently */
 int nw_hub_send(nw_hub *hub, uint64_t id, const void *data, size_t size);
 
-/* close a connection by id, see nw_svr_close_clt. nothing happens if it is
+/* close a connection by id, see nw_svr_close. nothing happens if it is
  * gone. return 0, or -1 if the request could not be queued */
 int nw_hub_close(nw_hub *hub, uint64_t id);
 
-/* close a connection by id in an orderly way, see nw_svr_shutdown_clt:
+/* close a connection by id in an orderly way, see nw_svr_shutdown:
  * what was sent to it before, through this hub from the same thread,
  * still arrives. return as nw_hub_close */
 int nw_hub_shutdown(nw_hub *hub, uint64_t id);
@@ -212,7 +212,7 @@ nw_hub *nw_hub_of(nw_ses *ses);
 int nw_hub_index(nw_hub *hub);
 
 /* the nw_svr of the calling worker thread, which holds the connections of
- * this thread: for clt_count, the iterator, nw_svr_get_clt. NULL if the
+ * this thread: for ses_count, the iterator, nw_svr_get. NULL if the
  * calling thread is not a worker of this hub */
 nw_svr *nw_hub_svr(nw_hub *hub);
 

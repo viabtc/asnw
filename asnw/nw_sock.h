@@ -31,7 +31,7 @@ typedef struct nw_addr {
 /* the struct sockaddr pointer of a nw_addr pointer, for the socket calls */
 # define NW_SOCKADDR(addr) ((struct sockaddr *)(&(addr)->in))
 /* buffer size for nw_sock_human_addr_s */
-# define NW_HUMAN_ADDR_SIZE 128
+# define NW_SOCK_HUMAN_ADDR_SIZE 128
 /* buffer size for nw_sock_ip_s */
 # define NW_SOCK_IP_SIZE    INET6_ADDRSTRLEN
 
@@ -45,7 +45,7 @@ typedef struct nw_addr {
  */
 char *nw_sock_human_addr(nw_addr *addr);
 
-/* same, written to dest, which must hold at least NW_HUMAN_ADDR_SIZE bytes.
+/* same, written to dest, which must hold at least NW_SOCK_HUMAN_ADDR_SIZE bytes.
  * returns dest */
 char *nw_sock_human_addr_s(nw_addr *addr, char *dest);
 
@@ -87,7 +87,7 @@ int nw_sock_set_mode(nw_addr *addr, mode_t mode);
  *   -4: bad ip or port
  *   -5: unix path empty or too long
  */
-int nw_sock_cfg_parse(const char *cfg, nw_addr *addr, int *sock_type);
+int nw_sock_addr_parse(const char *cfg, nw_addr *addr, int *sock_type);
 
 /* the functions below return 0 on success and -1 on error with errno set,
  * except nw_sock_errno */
@@ -96,7 +96,7 @@ int nw_sock_cfg_parse(const char *cfg, nw_addr *addr, int *sock_type);
 int nw_sock_peer_addr(int sockfd, nw_addr *addr);
 
 /* get the local address of a socket, e.g. the port picked for a bind to port 0 */
-int nw_sock_host_addr(int sockfd, nw_addr *addr);
+int nw_sock_local_addr(int sockfd, nw_addr *addr);
 
 /* fetch and clear the pending error of a socket (SO_ERROR): 0 if there is
  * none, otherwise an errno value. tells how a non blocking connect ended */

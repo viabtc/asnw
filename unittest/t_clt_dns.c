@@ -87,7 +87,7 @@ static void drop_clients(nw_svr *svr)
     nw_ses *ses;
     nw_svr_iter_init(&iter, svr);
     while ((ses = nw_svr_next(&iter)) != NULL)
-        nw_svr_close_clt(svr, ses);
+        nw_svr_close(svr, ses);
 }
 
 /* a client and what happened to it */
@@ -243,21 +243,21 @@ int main(void)
     client_start(&c, "tcp", "moving.test", 0.1);
     WAIT(c.connected == 1);
     CHECK_EQ(c.peer_ip, IP(1));
-    CHECK_EQ(svr1->clt_count, 1);
+    CHECK_EQ(svr1->ses_count, 1);
     CHECK_EQ(GET(lookups), 1);
     __sync_lock_test_and_set(&moving_ip, IP(3));
     drop_clients(svr1);
     WAIT(c.connected == 2);
     CHECK_EQ(c.closed, 1);
     CHECK_EQ(c.peer_ip, IP(3));
-    CHECK_EQ(svr3->clt_count, 1);
-    CHECK_EQ(svr1->clt_count, 0);
+    CHECK_EQ(svr3->ses_count, 1);
+    CHECK_EQ(svr1->ses_count, 0);
     CHECK_EQ(GET(lookups), 2);
     CHECK_EQ(nw_ses_send(&c.clt->ses, "there\n", 6), 0);
     WAIT(c.received == 1);
     /* closed by the application and started again: looked up again too */
     __sync_lock_test_and_set(&moving_ip, IP(1));
-    CHECK_EQ(nw_clt_close(c.clt), 0);
+    CHECK_EQ(nw_clt_stop(c.clt), 0);
     CHECK_EQ(c.closed, 2);
     CHECK_EQ(nw_clt_start(c.clt), 0);
     WAIT(c.connected == 3);
@@ -293,7 +293,7 @@ int main(void)
     client_start(&c, "tcp", "slow.test", 0.1);
     ut_run_for(0.05);
     CHECK(c.clt->dns_query != NULL);
-    CHECK_EQ(nw_clt_close(c.clt), 0);
+    CHECK_EQ(nw_clt_stop(c.clt), 0);
     CHECK(c.clt->dns_query == NULL);
     ut_run_for(0.5);
     CHECK_EQ(c.connected, 0);

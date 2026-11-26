@@ -50,7 +50,7 @@ static int on_close(nw_ses *ses)
         clt->curr_index = 0;
         return 0;
     }
-    memcpy(&ses->peer_addr, &clt->addr_arr[clt->curr_index], sizeof(nw_addr));
+    memcpy(&ses->peer_addr, &clt->addrs[clt->curr_index], sizeof(nw_addr));
     clt->curr_index += 1;
     return 1;
 }
@@ -65,7 +65,7 @@ static void on_timer(nw_timer *timer, void *privdata)
 
     double now = rpc_monotonic_time();
     if (now - clt->last_heartbeat > RPC_HEARTBEAT_TIMEOUT) {
-        nw_clt_close(clt->raw_clt);
+        nw_clt_stop(clt->raw_clt);
         nw_clt_start(clt->raw_clt);
     } else {
         rpc_pkg pkg;
@@ -87,7 +87,7 @@ rpc_clt *rpc_clt_create(rpc_clt_cfg *cfg, rpc_clt_type *type)
 
     nw_clt_cfg raw_cfg;
     memset(&raw_cfg, 0, sizeof(raw_cfg));
-    memcpy(&raw_cfg.addr, &cfg->addr_arr[0], sizeof(nw_addr));
+    memcpy(&raw_cfg.addr, &cfg->addrs[0], sizeof(nw_addr));
     raw_cfg.sock_type = cfg->sock_type;
     raw_cfg.read_mem = cfg->read_mem;
     raw_cfg.write_mem = cfg->write_mem;
@@ -117,9 +117,9 @@ rpc_clt *rpc_clt_create(rpc_clt_cfg *cfg, rpc_clt_type *type)
     clt->name = strdup(cfg->name);
     assert(clt->name != NULL);
     clt->addr_count = cfg->addr_count;
-    clt->addr_arr = malloc(sizeof(nw_addr) * clt->addr_count);
-    assert(clt->addr_arr != NULL);
-    memcpy(clt->addr_arr, cfg->addr_arr, sizeof(nw_addr) * clt->addr_count);
+    clt->addrs = malloc(sizeof(nw_addr) * clt->addr_count);
+    assert(clt->addrs != NULL);
+    memcpy(clt->addrs, cfg->addrs, sizeof(nw_addr) * clt->addr_count);
 
     nw_timer_set(&clt->timer, RPC_HEARTBEAT_INTERVAL, true, on_timer, clt);
     clt->on_recv_pkg = type->on_recv_pkg;
@@ -138,9 +138,9 @@ int rpc_clt_start(rpc_clt *clt)
     return 0;
 }
 
-int rpc_clt_close(rpc_clt *clt)
+int rpc_clt_stop(rpc_clt *clt)
 {
-    int ret = nw_clt_close(clt->raw_clt);
+    int ret = nw_clt_stop(clt->raw_clt);
     if (ret < 0) {
         return ret;
     }
@@ -157,7 +157,7 @@ void rpc_clt_release(rpc_clt *clt)
 {
     nw_timer_stop(&clt->timer);
     nw_clt_release(clt->raw_clt);
-    free(clt->addr_arr);
+    free(clt->addrs);
     free(clt->name);
     free(clt);
 }

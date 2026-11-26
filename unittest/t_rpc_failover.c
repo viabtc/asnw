@@ -31,11 +31,11 @@ int main(void)
     CHECK_EQ(generate_crc32("123456789", 9), 0xCBF43926u);
 
     nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     rpc_svr_type st;
     memset(&st, 0, sizeof(st));
     st.on_recv_pkg = on_recv_pkg;
@@ -49,11 +49,11 @@ int main(void)
     nw_addr addrs[2];
     rpc_clt_cfg ccfg;
     memset(&ccfg, 0, sizeof(ccfg));
-    CHECK_EQ(nw_sock_cfg_parse(dead, &addrs[0], &ccfg.sock_type), 0);
-    CHECK_EQ(nw_sock_cfg_parse(alive, &addrs[1], &ccfg.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(dead, &addrs[0], &ccfg.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(alive, &addrs[1], &ccfg.sock_type), 0);
     ccfg.name = "failover";
     ccfg.addr_count = 2;
-    ccfg.addr_arr = addrs;
+    ccfg.addrs = addrs;
     ccfg.reconnect_timeout = 30.0;      /* the second address must be tried without waiting */
 
     rpc_clt_type ct;
@@ -71,7 +71,7 @@ int main(void)
     CHECK(rpc_clt_connected(clt));
     CHECK(strcmp(nw_sock_human_addr(&clt->raw_clt->ses.peer_addr), alive + 4) == 0);
     ut_run_for(0.05);
-    CHECK_EQ(svr->raw_svr->clt_count, 1);
+    CHECK_EQ(svr->raw_svr->ses_count, 1);
 
     rpc_clt_release(clt);
     ut_run_for(0.05);

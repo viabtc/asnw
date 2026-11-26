@@ -61,7 +61,7 @@
  * dgram clients
  *
  * there is no connection: the client is usable right after nw_clt_start,
- * on_connect is not called (and on_close only by nw_clt_close), and
+ * on_connect is not called (and on_close only by nw_clt_stop), and
  * nothing tells whether the server is there. the exception is a server
  * given by name, see above: the client is usable once the name is
  * resolved, and on_connect(true) is called then. it always sends to the
@@ -126,16 +126,16 @@ typedef struct nw_clt_type {
     /* optional
      *
      * called once each time the connection is lost, a connect attempt
-     * fails, or nw_clt_close is called. the place to fail the requests that
+     * fails, or nw_clt_stop is called. the place to fail the requests that
      * were waiting for a reply, or to pick another server by changing
      * ses->peer_addr (not when the server was given by name: the address
      * then comes from the lookup).
      * return > 0 to connect again at once (on the next turn of the loop),
      * anything else to wait reconnect_timeout first. the return value is
-     * ignored for nw_clt_close.
+     * ignored for nw_clt_stop.
      *
      * the connection is over when this is called: nw_ses_send returns -1.
-     * calling nw_clt_close from here means "stay closed": no reconnect is
+     * calling nw_clt_stop from here means "stay closed": no reconnect is
      * scheduled */
     int (*on_close)(nw_ses *ses);
     /* optional
@@ -195,7 +195,7 @@ typedef struct nw_clt {
     uint32_t addr_next;
     /* look the name up again before the next connect */
     bool resolve_again;
-    /* on_close is running; nw_clt_close was called from inside it */
+    /* on_close is running; nw_clt_stop was called from inside it */
     bool in_on_close;
     bool close_requested;
     double reconnect_timeout;
@@ -204,7 +204,7 @@ typedef struct nw_clt {
 } nw_clt;
 
 /*
- * fill the address of a cfg from a string: what nw_sock_cfg_parse takes,
+ * fill the address of a cfg from a string: what nw_sock_addr_parse takes,
  * and for tcp and udp also a host name in place of the ip:
  *
  *   tcp@10.0.0.1:5432       -> cfg->addr
@@ -212,7 +212,7 @@ typedef struct nw_clt {
  *   stream@/tmp/db.sock     -> cfg->addr
  *
  * the other fields of cfg are left alone. return 0, the errors of
- * nw_sock_cfg_parse, or -6 if it is not a possible name (too long,
+ * nw_sock_addr_parse, or -6 if it is not a possible name (too long,
  * or other characters than letters, digits, '-', '_' and '.').
  */
 int nw_clt_cfg_parse(const char *str, nw_clt_cfg *cfg);
@@ -234,7 +234,7 @@ int nw_clt_start(nw_clt *clt);
 
 /* close the connection and stay closed: on_close is called, pending data
  * is dropped and no reconnect is scheduled. nw_clt_start starts it again */
-int nw_clt_close(nw_clt *clt);
+int nw_clt_stop(nw_clt *clt);
 
 /* close without calling on_close, and free the client. don't call it from
  * a callback of this client */

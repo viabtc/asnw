@@ -49,9 +49,9 @@ int main(int argc, char *argv[])
     memset(&cfg, 0, sizeof(cfg));
     cfg.name = strdup(argv[1]);
     cfg.addr_count = argc - 2;
-    cfg.addr_arr = malloc(sizeof(nw_addr) * cfg.addr_count);
+    cfg.addrs = malloc(sizeof(nw_addr) * cfg.addr_count);
     for (uint32_t i = 0; i < cfg.addr_count; ++i) {
-        if (nw_sock_cfg_parse(argv[i + 2], &cfg.addr_arr[i], &cfg.sock_type) < 0)
+        if (nw_sock_addr_parse(argv[i + 2], &cfg.addrs[i], &cfg.sock_type) < 0)
             error(1, errno, "parse peer addr: %s fail", argv[i + 2]);
     }
 

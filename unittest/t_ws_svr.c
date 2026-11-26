@@ -79,7 +79,7 @@ static void on_message(nw_ses *ses, bool binary, void *data, size_t size)
         CHECK_EQ(nw_ws_send_text(ses, "after close"), -1);
         nw_ws_close(ses, NW_WS_CLOSE_NORMAL, "twice");      /* no effect */
     } else if (!binary && strcmp(s, "hardclose") == 0) {
-        nw_svr_close_clt(svr->raw_svr, ses);
+        nw_svr_close(svr->raw_svr, ses);
     } else if (!binary && strncmp(s, "broadcast:", 10) == 0) {
         last_broadcast = nw_ws_broadcast_text(svr, s + 10);
     } else if (!binary && strcmp(s, "bigcast") == 0) {
@@ -131,7 +131,7 @@ static nw_ws_svr *start_server(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type)
     nw_ws_svr *s = nw_ws_svr_create(cfg, type, NULL);
     CHECK(s != NULL);
     CHECK_EQ(nw_ws_svr_start(s), 0);
-    CHECK_EQ(nw_sock_host_addr(s->raw_svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(s->raw_svr->binds[0].sockfd, &addr), 0);
     return s;
 }
 
@@ -148,11 +148,11 @@ int main(void)
         big[i] = 'A' + i % 26;
 
     nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_ws_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.protocol = "chat.v1";
 
     nw_ws_svr_type type;
@@ -167,9 +167,9 @@ int main(void)
     type.on_close = on_close;
     type.on_error_msg = on_error_msg;
     nw_svr_bind udp;
-    CHECK_EQ(nw_sock_cfg_parse("udp@127.0.0.1:0", &udp.addr, &udp.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("udp@127.0.0.1:0", &udp.addr, &udp.sock_type), 0);
     nw_ws_svr_cfg bad_cfg = cfg;
-    bad_cfg.bind_arr = &udp;
+    bad_cfg.binds = &udp;
     CHECK(nw_ws_svr_create(&bad_cfg, &type, NULL) == NULL);     /* stream only */
 
     svr = start_server(&cfg, &type);
@@ -577,7 +577,7 @@ int main(void)
     client_free(alive);
     client_free(silent);
     ut_run_for(0.05);
-    CHECK_EQ(svr->raw_svr->clt_count, 0);
+    CHECK_EQ(svr->raw_svr->ses_count, 0);
     nw_ws_svr_release(svr);
 
     CHECK_EQ(free_count, alloc_count);

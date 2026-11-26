@@ -67,7 +67,7 @@ static void on_timer(nw_timer *timer, void *privdata)
     while ((ses = nw_svr_next(&iter)) != NULL) {
         if (ses->closing) {
             if (now >= ses->close_deadline) {
-                nw_svr_close_clt(svr, ses);
+                nw_svr_close(svr, ses);
             } else if (NW_SVR_LINGER_TIME < shortest) {
                 shortest = NW_SVR_LINGER_TIME;
             }
@@ -169,7 +169,7 @@ static void on_error(nw_ses *ses, const char *msg)
         svr->type.on_error_msg(ses, msg);
     }
     if (ses->ses_type == NW_SES_TYPE_COMMON) {
-        nw_svr_close_clt(svr, ses);
+        nw_svr_close(svr, ses);
     }
 }
 
@@ -177,7 +177,7 @@ static void on_close(nw_ses *ses)
 {
     nw_svr *svr = (nw_svr *)ses->svr;
     if (ses->ses_type == NW_SES_TYPE_COMMON) {
-        nw_svr_close_clt(svr, ses);
+        nw_svr_close(svr, ses);
     }
 }
 
@@ -189,21 +189,21 @@ static void on_recv_fd(nw_ses *ses, int fd)
 /* the single place that frees a server; also used on a half built one */
 static void nw_svr_free(nw_svr *svr)
 {
-    if (svr->bind_list) {
+    if (svr->binds) {
         for (uint32_t i = 0; i < svr->bind_count; ++i) {
-            nw_ses *ses = &svr->bind_list[i];
+            nw_ses *ses = &svr->binds[i];
             if (ses->write_buf != NULL) {
                 nw_ses_release(ses);
             }
-            free(ses->host_addr);
+            free(ses->local_addr);
         }
-        free(svr->bind_list);
+        free(svr->binds);
     }
-    if (svr->clt_dict)
-        nw_dict_release(svr->clt_dict);
+    if (svr->ses_dict)
+        nw_dict_release(svr->ses_dict);
     /* sessions hand their bufs back to the pool, so the pool goes last */
-    if (svr->clt_cache)
-        nw_cache_release(svr->clt_cache);
+    if (svr->ses_cache)
+        nw_cache_release(svr->ses_cache);
     if (svr->buf_pool)
         nw_buf_pool_release(svr->buf_pool);
     free(svr);
@@ -222,7 +222,7 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr *peer_addr)
         }
     }
 
-    nw_ses *clt = nw_cache_alloc(svr->clt_cache);
+    nw_ses *clt = nw_cache_alloc(svr->ses_cache);
     if (clt == NULL) {
         if (privdata) {
             svr->type.on_privdata_free(svr, privdata);
@@ -231,14 +231,14 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr *peer_addr)
     }
     memset(clt, 0, sizeof(nw_ses));
     if (nw_ses_init(clt, nw_default_loop, svr->buf_pool, svr->buf_limit, NW_SES_TYPE_COMMON) < 0) {
-        nw_cache_free(svr->clt_cache, clt);
+        nw_cache_free(svr->ses_cache, clt);
         if (privdata) {
             svr->type.on_privdata_free(svr, privdata);
         }
         return -1;
     }
     memcpy(&clt->peer_addr, peer_addr, sizeof(nw_addr));
-    clt->host_addr   = ses->host_addr;
+    clt->local_addr   = ses->local_addr;
     clt->sockfd      = sockfd;
     clt->sock_type   = ses->sock_type;
     clt->privdata    = privdata;
@@ -247,12 +247,12 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr *peer_addr)
     clt->id = svr->id_start++;
     if (clt->id == 0)
         clt->id = svr->id_start++;
-    if (nw_dict_add(svr->clt_dict, clt->id, clt) < 0) {
+    if (nw_dict_add(svr->ses_dict, clt->id, clt) < 0) {
         /* nothing else knows this session yet, undo it. sockfd is closed
          * by the caller, as for every failure of this function */
         clt->sockfd = -1;
         nw_ses_release(clt);
-        nw_cache_free(svr->clt_cache, clt);
+        nw_cache_free(svr->ses_cache, clt);
         if (privdata) {
             svr->type.on_privdata_free(svr, privdata);
         }
@@ -266,15 +266,15 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr *peer_addr)
     clt->on_close    = on_close;
     clt->on_drain    = svr->type.on_drain;
 
-    svr->clt_count++;
+    svr->ses_count++;
     clt->active_time = ev_now(nw_default_loop);
     clt->idle_timeout = svr->idle_timeout;
     if (clt->idle_timeout > 0)
         need_timer(svr, clt->idle_timeout);
     nw_ses_start(clt);
 
-    if (svr->type.on_new_connection) {
-        svr->type.on_new_connection(clt);
+    if (svr->type.on_open) {
+        svr->type.on_open(clt);
     }
 
     return 0;
@@ -289,7 +289,7 @@ static int on_accept(nw_ses *ses, int sockfd, nw_addr *peer_addr)
     return nw_svr_add_clt(ses, sockfd, peer_addr);
 }
 
-int nw_svr_add_clt_fd(nw_svr *svr, int fd)
+int nw_svr_add_fd(nw_svr *svr, int fd)
 {
     nw_addr peer_addr;
     if (nw_sock_peer_addr(fd, &peer_addr) < 0) {
@@ -301,8 +301,8 @@ int nw_svr_add_clt_fd(nw_svr *svr, int fd)
     }
     nw_ses *ses = NULL;
     for (uint32_t i = 0; i < svr->bind_count; ++i) {
-        if (peer_addr.family == svr->bind_list[i].host_addr->family) {
-            ses = &svr->bind_list[i];
+        if (peer_addr.family == svr->binds[i].local_addr->family) {
+            ses = &svr->binds[i];
             break;
         }
     }
@@ -315,7 +315,7 @@ int nw_svr_add_accepted_fd(nw_svr *svr, uint32_t bind_index, int fd, nw_addr *pe
 {
     if (bind_index >= svr->bind_count)
         return -1;
-    nw_ses *ses = &svr->bind_list[bind_index];
+    nw_ses *ses = &svr->binds[bind_index];
     if (ses->sock_type == SOCK_DGRAM)
         return -1;
     return nw_svr_add_clt(ses, fd, peer_addr);
@@ -342,8 +342,8 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
     memset(svr, 0, sizeof(nw_svr));
     svr->type = *type;
     svr->bind_count = cfg->bind_count;
-    svr->bind_list = calloc(svr->bind_count, sizeof(nw_ses));
-    if (svr->bind_list == NULL) {
+    svr->binds = calloc(svr->bind_count, sizeof(nw_ses));
+    if (svr->binds == NULL) {
         nw_svr_free(svr);
         return NULL;
     }
@@ -352,13 +352,13 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
         nw_svr_free(svr);
         return NULL;
     }
-    svr->clt_cache = nw_cache_create(sizeof(nw_ses));
-    if (svr->clt_cache == NULL) {
+    svr->ses_cache = nw_cache_create(sizeof(nw_ses));
+    if (svr->ses_cache == NULL) {
         nw_svr_free(svr);
         return NULL;
     }
-    svr->clt_dict = nw_dict_create(0);
-    if (svr->clt_dict == NULL) {
+    svr->ses_dict = nw_dict_create(0);
+    if (svr->ses_dict == NULL) {
         nw_svr_free(svr);
         return NULL;
     }
@@ -368,28 +368,28 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
     svr->write_mem = cfg->write_mem;
     svr->privdata = privdata;
     for (uint32_t i = 0; i < svr->bind_count; ++i) {
-        nw_ses *ses = &svr->bind_list[i];
-        int sockfd = create_socket(cfg->bind_arr[i].addr.family, cfg->bind_arr[i].sock_type);
+        nw_ses *ses = &svr->binds[i];
+        int sockfd = create_socket(cfg->binds[i].addr.family, cfg->binds[i].sock_type);
         if (sockfd < 0) {
             nw_svr_free(svr);
             return NULL;
         }
-        nw_addr *host_addr = malloc(sizeof(nw_addr));
-        if (host_addr == NULL) {
+        nw_addr *local_addr = malloc(sizeof(nw_addr));
+        if (local_addr == NULL) {
             close(sockfd);
             nw_svr_free(svr);
             return NULL;
         }
-        memcpy(host_addr, &cfg->bind_arr[i].addr, sizeof(nw_addr));
+        memcpy(local_addr, &cfg->binds[i].addr, sizeof(nw_addr));
         if (nw_ses_init(ses, nw_default_loop, svr->buf_pool, svr->buf_limit, NW_SES_TYPE_SERVER) < 0) {
             close(sockfd);
-            free(host_addr);
+            free(local_addr);
             nw_svr_free(svr);
             return NULL;
         }
         ses->sockfd      = sockfd;
-        ses->sock_type   = cfg->bind_arr[i].sock_type;
-        ses->host_addr   = host_addr;
+        ses->sock_type   = cfg->binds[i].sock_type;
+        ses->local_addr   = local_addr;
         ses->svr         = svr;
 
         ses->on_accept   = on_accept;
@@ -399,9 +399,9 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
         ses->on_error    = on_error;
         ses->on_close    = on_close;
 
-        if (cfg->bind_arr[i].sock_type == SOCK_DGRAM) {
-            ses->peer_addr.family = host_addr->family;
-            ses->peer_addr.addrlen = host_addr->addrlen;
+        if (cfg->binds[i].sock_type == SOCK_DGRAM) {
+            ses->peer_addr.family = local_addr->family;
+            ses->peer_addr.addrlen = local_addr->addrlen;
             set_socket_option(svr, sockfd);
         }
     }
@@ -412,8 +412,8 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
 int nw_svr_start(nw_svr *svr)
 {
     for (uint32_t i = 0; i < svr->bind_count; ++i) {
-        nw_ses *ses = &svr->bind_list[i];
-        if (nw_ses_bind(ses, ses->host_addr) < 0) {
+        nw_ses *ses = &svr->binds[i];
+        if (nw_ses_bind(ses, ses->local_addr) < 0) {
             return -1;
         }
         if (nw_ses_start(ses) < 0) {
@@ -427,7 +427,7 @@ int nw_svr_start(nw_svr *svr)
 int nw_svr_stop(nw_svr *svr)
 {
     for (uint32_t i = 0; i < svr->bind_count; ++i) {
-        if (nw_ses_stop(&svr->bind_list[i]) < 0) {
+        if (nw_ses_stop(&svr->binds[i]) < 0) {
             return -1;
         }
     }
@@ -442,12 +442,12 @@ void nw_svr_release(nw_svr *svr)
     nw_ses *curr;
     nw_svr_iter_init(&iter, svr);
     while ((curr = nw_svr_next(&iter)) != NULL) {
-        nw_svr_close_clt(svr, curr);
+        nw_svr_close(svr, curr);
     }
     nw_svr_free(svr);
 }
 
-void nw_svr_close_clt(nw_svr *svr, nw_ses *ses)
+void nw_svr_close(nw_svr *svr, nw_ses *ses)
 {
     if (ses->id == 0)
         return;
@@ -456,36 +456,36 @@ void nw_svr_close_clt(nw_svr *svr, nw_ses *ses)
 
     /*
      * take the connection out of the server BEFORE telling the application.
-     * whatever on_connection_close does then - send on this connection,
+     * whatever on_close does then - send on this connection,
      * close it again, close others whose own callbacks look for this one -
      * cannot get back in here for it: it is not found by id any more, a
      * second close stops at the line below, and sending fails quietly
      * instead of reporting an error that would close it once more.
      */
-    if (nw_dict_del(svr->clt_dict, ses->id) < 0)
+    if (nw_dict_del(svr->ses_dict, ses->id) < 0)
         return;
-    svr->clt_count--;
+    svr->ses_count--;
     ses->closing = true;
     nw_ses_stop(ses);
 
-    if (svr->type.on_connection_close) {
-        svr->type.on_connection_close(ses);
+    if (svr->type.on_close) {
+        svr->type.on_close(ses);
     }
     if (ses->privdata) {
         svr->type.on_privdata_free(svr, ses->privdata);
     }
     nw_ses_release(ses);
-    nw_cache_free(svr->clt_cache, ses);
+    nw_cache_free(svr->ses_cache, ses);
 }
 
-nw_ses *nw_svr_get_clt(nw_svr *svr, uint64_t id)
+nw_ses *nw_svr_get(nw_svr *svr, uint64_t id)
 {
-    return nw_dict_get(svr->clt_dict, id);
+    return nw_dict_get(svr->ses_dict, id);
 }
 
 int nw_svr_send(nw_svr *svr, uint64_t id, const void *data, size_t size)
 {
-    nw_ses *ses = nw_svr_get_clt(svr, id);
+    nw_ses *ses = nw_svr_get(svr, id);
     if (ses == NULL)
         return -1;
     return nw_ses_send(ses, data, size);
@@ -493,7 +493,7 @@ int nw_svr_send(nw_svr *svr, uint64_t id, const void *data, size_t size)
 
 void nw_svr_iter_init(nw_svr_iterator *iter, nw_svr *svr)
 {
-    nw_dict_iter_init(&iter->iter, svr->clt_dict);
+    nw_dict_iter_init(&iter->iter, svr->ses_dict);
 }
 
 nw_ses *nw_svr_next(nw_svr_iterator *iter)
@@ -514,7 +514,7 @@ static bool is_clt(nw_ses *ses)
     return ses->ses_type == NW_SES_TYPE_COMMON && ses->id != 0;
 }
 
-void nw_svr_shutdown_clt(nw_svr *svr, nw_ses *ses)
+void nw_svr_shutdown(nw_svr *svr, nw_ses *ses)
 {
     if (!is_clt(ses) || ses->closing)
         return;
@@ -523,7 +523,7 @@ void nw_svr_shutdown_clt(nw_svr *svr, nw_ses *ses)
     need_timer(svr, NW_SVR_LINGER_TIME);
 }
 
-void nw_svr_set_clt_idle_timeout(nw_svr *svr, nw_ses *ses, double timeout)
+void nw_svr_set_idle_timeout(nw_svr *svr, nw_ses *ses, double timeout)
 {
     if (!is_clt(ses))
         return;
@@ -533,7 +533,7 @@ void nw_svr_set_clt_idle_timeout(nw_svr *svr, nw_ses *ses, double timeout)
         need_timer(svr, ses->idle_timeout);
 }
 
-void nw_svr_set_clt_deadline(nw_svr *svr, nw_ses *ses, double timeout)
+void nw_svr_set_deadline(nw_svr *svr, nw_ses *ses, double timeout)
 {
     if (!is_clt(ses))
         return;

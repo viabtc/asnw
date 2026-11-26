@@ -62,10 +62,10 @@ int main(void)
     ut_run_for(1.0);
     CHECK(nw_clt_connected(clt));
     ut_run_for(0.05);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     nw_clt_release(clt);
     ut_run_for(0.05);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
     nw_svr_release(svr);
     return 0;
 }

@@ -90,10 +90,10 @@
 typedef struct nw_ws_svr nw_ws_svr;
 
 typedef struct nw_ws_svr_cfg {
-    /* number of entries in bind_arr, at least 1 */
+    /* number of entries in binds, at least 1 */
     uint32_t bind_count;
     /* the addresses to listen on, all SOCK_STREAM (tcp or unix stream) */
-    nw_svr_bind *bind_arr;
+    nw_svr_bind *binds;
     /* max size of a message in bytes, whether it comes in one frame or in
      * several. it is also the size of the read buffer of a connection.
      * 0 for the default, 64K. at most 1G */
@@ -208,7 +208,7 @@ typedef struct nw_ws_svr_type {
 
 /* the fields are for reading only */
 struct nw_ws_svr {
-    /* the nw_svr underneath: raw_svr->clt_count, nw_svr_next ... note that
+    /* the nw_svr underneath: raw_svr->ses_count, nw_svr_next ... note that
      * it also holds the connections that have not finished the handshake.
      * with threads: the connections of this thread; in the server returned
      * by nw_ws_svr_create, the one that accepts, which has none */

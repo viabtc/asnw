@@ -95,11 +95,11 @@ UT_UNUSED static void ut_unix_cfg(char *out, size_t size, const char *proto, con
 UT_UNUSED static nw_svr *ut_svr(const char *cfg_str, nw_svr_type *type, uint32_t max_pkg_size, void *privdata)
 {
     static nw_svr_bind bind;
-    CHECK(nw_sock_cfg_parse(cfg_str, &bind.addr, &bind.sock_type) == 0);
+    CHECK(nw_sock_addr_parse(cfg_str, &bind.addr, &bind.sock_type) == 0);
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.max_pkg_size = max_pkg_size;
     nw_svr *svr = nw_svr_create(&cfg, type, privdata);
     CHECK(svr != NULL);
@@ -123,7 +123,7 @@ UT_UNUSED static nw_clt *ut_clt(const char *cfg_str, nw_clt_type *type, uint32_t
 UT_UNUSED static int ut_svr_port(nw_svr *svr, int i)
 {
     nw_addr addr;
-    CHECK(nw_sock_host_addr(svr->bind_list[i].sockfd, &addr) == 0);
+    CHECK(nw_sock_local_addr(svr->binds[i].sockfd, &addr) == 0);
     return ntohs(addr.in.sin_port);
 }
 

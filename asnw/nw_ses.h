@@ -18,7 +18,7 @@
  * events.
  *
  * as a user you get a nw_ses in every callback. what you do with it:
- *   - read its fields: peer_addr, host_addr, id, privdata, svr, sock_type
+ *   - read its fields: peer_addr, local_addr, id, privdata, svr, sock_type
  *   - send with nw_ses_send (and nw_ses_send_fd)
  *   - control the flow, if you need to: see "flow control" below
  * create, start and close sessions through nw_svr / nw_clt, not with the
@@ -51,7 +51,7 @@ typedef struct nw_ses {
     nw_addr peer_addr;
     /* the local address. connections of a nw_svr share the pointer of the
      * session that accepted them */
-    nw_addr *host_addr;
+    nw_addr *local_addr;
     /* data received and not consumed yet, NULL when there is none */
     nw_buf *read_buf;
     /* data accepted by nw_ses_send and not written to the socket yet */
@@ -72,12 +72,12 @@ typedef struct nw_ses {
      * the peer has been silent */
     double active_time;
     /* timeouts of a nw_svr connection, managed by nw_svr: see
-     * nw_svr_set_clt_idle_timeout and nw_svr_set_clt_deadline */
+     * nw_svr_set_idle_timeout and nw_svr_set_deadline */
     double idle_timeout;
     double idle_mark;
     double deadline;
     double deadline_span;
-    /* set by nw_svr_shutdown_clt: the session is on its way out. nothing
+    /* set by nw_svr_shutdown: the session is on its way out. nothing
      * more can be sent on it and what it still receives is thrown away */
     bool closing;
     bool write_shut;
@@ -114,7 +114,7 @@ typedef struct nw_ses {
  *
  * return 0 if the data was sent or queued (it does not tell which).
  * return -1 on failure: the session is closed or shutting down
- * (nw_svr_shutdown_clt), the pending send list is full (buf_limit), or the
+ * (nw_svr_shutdown), the pending send list is full (buf_limit), or the
  * socket reported an error. in the last two cases the error handler has
  * run by then (on_error_msg), and for a connection that means it is closed
  * already: don't use ses after a -1.
@@ -162,7 +162,7 @@ size_t nw_ses_pending(nw_ses *ses);
  * a paused session does not notice that its peer closed the connection or
  * went silent until it is resumed, or until a send to it fails. and it
  * still times out: being paused counts as silence for the idle timeout, so
- * give it a timeout of its own (nw_svr_set_clt_idle_timeout) if it may be
+ * give it a timeout of its own (nw_svr_set_idle_timeout) if it may be
  * paused for long.
  *
  * for connections and nw_clt sessions that are connected; nothing happens

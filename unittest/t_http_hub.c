@@ -132,7 +132,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
     }
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     check_thread(ses);
     ADD(closes);
@@ -157,7 +157,7 @@ static int on_thread_start(nw_http_svr *svr, uint32_t index)
 static void on_thread_stop(nw_http_svr *svr, uint32_t index)
 {
     ADD(thread_stops);
-    if (svr->raw_svr->clt_count != 0)
+    if (svr->raw_svr->ses_count != 0)
         ADD(wrong);
     if (job)
         nw_job_release(job);
@@ -167,17 +167,17 @@ static void on_thread_stop(nw_http_svr *svr, uint32_t index)
 static nw_http_svr *create(uint32_t threads)
 {
     static nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_http_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.max_request_size = BIG_SIZE + 4096;
     cfg.thread_count = threads;
     nw_http_svr_type type;
     memset(&type, 0, sizeof(type));
     type.on_request = on_request;
-    type.on_connection_close = on_connection_close;
+    type.on_close = on_close;
     type.on_thread_start = on_thread_start;
     type.on_thread_stop = on_thread_stop;
     nw_http_svr *svr = nw_http_svr_create(&cfg, &type, &marker);
@@ -185,7 +185,7 @@ static nw_http_svr *create(uint32_t threads)
         return NULL;
     CHECK(svr->hub != NULL && svr->front == NULL);
     CHECK_EQ(nw_http_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->raw_svr->binds[0].sockfd, &addr), 0);
     addr.addrlen = sizeof(addr.in);
     return svr;
 }

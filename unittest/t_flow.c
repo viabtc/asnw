@@ -34,7 +34,7 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 {
     last_ses = ses;
     if (relay_to && ses->id == relay_from) {
-        nw_ses *down = nw_svr_get_clt(svr, relay_to);
+        nw_ses *down = nw_svr_get(svr, relay_to);
         if (down == NULL)
             return;
         if (nw_ses_send(down, data, size) < 0) {
@@ -67,13 +67,13 @@ static void on_drain(nw_ses *ses)
     drain_count++;
     CHECK_EQ(nw_ses_pending(ses), 0);
     if (relay_to && ses->id == relay_to) {
-        nw_ses *up = nw_svr_get_clt(svr, relay_from);
+        nw_ses *up = nw_svr_get(svr, relay_from);
         if (up)
             nw_ses_resume_read(up);
     }
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     close_count++;
 }
@@ -133,23 +133,23 @@ int main(void)
 {
     signal(SIGPIPE, SIG_IGN);
     static nw_svr_bind svr_bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &svr_bind.addr, &svr_bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &svr_bind.addr, &svr_bind.sock_type), 0);
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &svr_bind;
+    cfg.binds = &svr_bind;
     cfg.max_pkg_size = CHUNK;
     cfg.buf_limit = 16;                 /* 1M may wait for a connection, then it is closed */
     nw_svr_type type;
     memset(&type, 0, sizeof(type));
     type.decode_pkg = raw_decode;
     type.on_recv_pkg = on_recv_pkg;
-    type.on_connection_close = on_connection_close;
+    type.on_close = on_close;
     type.on_drain = on_drain;
     svr = nw_svr_create(&cfg, &type, NULL);
     CHECK(svr != NULL);
     CHECK_EQ(nw_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->binds[0].sockfd, &addr), 0);
 
     static char chunk[CHUNK];
     uint32_t sent_sum = 0, got_sum = 0;
@@ -249,7 +249,7 @@ int main(void)
     ses = newest();
     nw_ses_pause_read(ses);
     CHECK_EQ(nw_ses_send(ses, "bye\n", 4), 0);
-    nw_svr_shutdown_clt(svr, ses);
+    nw_svr_shutdown(svr, ses);
     CHECK(!ses->read_paused);
     nw_ses_pause_read(ses);                             /* too late for that */
     CHECK(!ses->read_paused);
@@ -280,7 +280,7 @@ int main(void)
         ut_run_for(0.001);
     }
     CHECK(relay_overflow);
-    CHECK(nw_svr_get_clt(svr, relay_to) == NULL);
+    CHECK(nw_svr_get(svr, relay_to) == NULL);
     CHECK_EQ(relay_pauses, 0);
     CHECK_EQ(close_count, 4);
     close(up);
@@ -338,7 +338,7 @@ int main(void)
     CHECK(relay_pauses >= 1);
     CHECK(drain_count >= relay_pauses);
     CHECK(relay_max_pending <= relay_mark + CHUNK);
-    CHECK(nw_svr_get_clt(svr, relay_to) != NULL);       /* never dropped */
+    CHECK(nw_svr_get(svr, relay_to) != NULL);       /* never dropped */
     CHECK_EQ(close_count, 5);
     relay_to = relay_from = 0;
     close(up);

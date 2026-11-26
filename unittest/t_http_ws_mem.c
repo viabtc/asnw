@@ -44,7 +44,7 @@ static void on_message(nw_ses *ses, bool binary, void *data, size_t size)
 static int knock(nw_ses *listener, const char *request)
 {
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(listener->sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(listener->sockfd, &addr), 0);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     CHECK(fd >= 0);
     CHECK_EQ(connect(fd, (struct sockaddr *)&addr.in, sizeof(addr.in)), 0);
@@ -73,7 +73,7 @@ int main(void)
 {
     signal(SIGPIPE, SIG_IGN);
     static nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
 
     for (int round = 0; round < 4; ++round) {
         uint32_t threads = round / 2 * 2;       /* 0, 0, 2, 2 */
@@ -82,7 +82,7 @@ int main(void)
         nw_http_svr_cfg hc;
         memset(&hc, 0, sizeof(hc));
         hc.bind_count = 1;
-        hc.bind_arr = &bind;
+        hc.binds = &bind;
         hc.thread_count = threads;
         hc.read_mem = set ? READ_MEM : 0;
         hc.write_mem = set ? WRITE_MEM : 0;
@@ -92,7 +92,7 @@ int main(void)
         nw_http_svr *http = nw_http_svr_create(&hc, &ht, NULL);
         CHECK(http != NULL);
         CHECK_EQ(nw_http_svr_start(http), 0);
-        int fd = knock(&http->raw_svr->bind_list[0], "GET / HTTP/1.1\r\nHost: test\r\n\r\n");
+        int fd = knock(&http->raw_svr->binds[0], "GET / HTTP/1.1\r\nHost: test\r\n\r\n");
         check(set);
         close(fd);
         nw_http_svr_release(http);
@@ -100,7 +100,7 @@ int main(void)
         nw_ws_svr_cfg wc;
         memset(&wc, 0, sizeof(wc));
         wc.bind_count = 1;
-        wc.bind_arr = &bind;
+        wc.binds = &bind;
         wc.thread_count = threads;
         wc.read_mem = set ? READ_MEM : 0;
         wc.write_mem = set ? WRITE_MEM : 0;
@@ -111,7 +111,7 @@ int main(void)
         nw_ws_svr *ws = nw_ws_svr_create(&wc, &wt, NULL);
         CHECK(ws != NULL);
         CHECK_EQ(nw_ws_svr_start(ws), 0);
-        fd = knock(&ws->raw_svr->bind_list[0],
+        fd = knock(&ws->raw_svr->binds[0],
                 "GET /chat HTTP/1.1\r\nHost: test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                 "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
         check(set);

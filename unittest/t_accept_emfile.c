@@ -37,7 +37,7 @@ int main(void)
     nw_svr *svr = ut_svr("tcp@127.0.0.1:0", &st, 1024, NULL);
 
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->binds[0].sockfd, &addr), 0);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     CHECK(fd >= 0);
     ut_run_for(0.01);                   /* let libev set up its own fds first */
@@ -54,7 +54,7 @@ int main(void)
     CHECK_EQ(setrlimit(RLIMIT_NOFILE, &saved), 0);
     fprintf(stderr, "one pending connection produced %d accept errors in 0.2s\n", errors);
     CHECK_EQ(errors, 1);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
 
     /* the rejected client was closed, not left hanging */
     char c;
@@ -67,10 +67,10 @@ int main(void)
     CHECK_EQ(connect(fd, NW_SOCKADDR(&addr), sizeof(addr.in)), 0);
     ut_run_for(0.1);
     CHECK_EQ(errors, 1);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     close(fd);
     ut_run_for(0.1);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
     nw_svr_release(svr);
     return 0;
 }

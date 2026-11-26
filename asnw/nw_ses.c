@@ -473,8 +473,8 @@ static void on_can_accept(nw_ses *ses)
     while (true) {
         nw_addr peer_addr;
         memset(&peer_addr, 0, sizeof(peer_addr));
-        peer_addr.family = ses->host_addr->family;
-        peer_addr.addrlen = ses->host_addr->addrlen;
+        peer_addr.family = ses->local_addr->family;
+        peer_addr.addrlen = ses->local_addr->addrlen;
         /* non-blocking and close-on-exec from the start */
         int sockfd = accept4(ses->sockfd, NW_SOCKADDR(&peer_addr), &peer_addr.addrlen, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (sockfd < 0) {

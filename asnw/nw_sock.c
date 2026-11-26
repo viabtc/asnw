@@ -15,7 +15,7 @@
 
 char *nw_sock_human_addr(nw_addr *addr)
 {
-    static __thread char str[NW_HUMAN_ADDR_SIZE];
+    static __thread char str[NW_SOCK_HUMAN_ADDR_SIZE];
     char ip[INET6_ADDRSTRLEN];
 
     switch (addr->family) {
@@ -45,14 +45,14 @@ char *nw_sock_human_addr_s(nw_addr *addr, char *dest)
     switch (addr->family) {
     case AF_INET:
         inet_ntop(addr->family, &addr->in.sin_addr, ip, sizeof(ip));
-        snprintf(dest, NW_HUMAN_ADDR_SIZE, "%s:%u", ip, ntohs(addr->in.sin_port));
+        snprintf(dest, NW_SOCK_HUMAN_ADDR_SIZE, "%s:%u", ip, ntohs(addr->in.sin_port));
         break;
     case AF_INET6:
         inet_ntop(addr->family, &addr->in6.sin6_addr, ip, sizeof(ip));
-        snprintf(dest, NW_HUMAN_ADDR_SIZE, "[%s]:%u", ip, ntohs(addr->in6.sin6_port));
+        snprintf(dest, NW_SOCK_HUMAN_ADDR_SIZE, "[%s]:%u", ip, ntohs(addr->in6.sin6_port));
         break;
     case AF_UNIX:
-        snprintf(dest, NW_HUMAN_ADDR_SIZE, "%s:%s", "unix", (addr->un.sun_path));
+        snprintf(dest, NW_SOCK_HUMAN_ADDR_SIZE, "%s:%s", "unix", (addr->un.sun_path));
         break;
     default:
         dest[0] = 0;
@@ -112,7 +112,7 @@ int nw_sock_peer_addr(int sockfd, nw_addr *addr)
     return -1;
 }
 
-int nw_sock_host_addr(int sockfd, nw_addr *addr)
+int nw_sock_local_addr(int sockfd, nw_addr *addr)
 {
     addr->addrlen = sizeof(addr->un);
     if (getsockname(sockfd, NW_SOCKADDR(addr), &addr->addrlen) == 0) {
@@ -169,7 +169,7 @@ static int nw_sock_addr_fill_unix(nw_addr *addr, const char *unix_path)
     return 0;
 }
 
-int nw_sock_cfg_parse(const char *cfg, nw_addr *addr, int *sock_type)
+int nw_sock_addr_parse(const char *cfg, nw_addr *addr, int *sock_type)
 {
     char *s = strdup(cfg);
     if (s == NULL)

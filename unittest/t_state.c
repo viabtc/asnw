@@ -66,13 +66,13 @@ int main(void)
     CHECK_EQ(nw_state_del(state, 1000), 0);
     CHECK_EQ(nw_state_del(state, 1000), -1);
     CHECK_EQ(release_count, 1);
-    CHECK_EQ(nw_state_mod(state, 1000, 1.0), -1);
+    CHECK_EQ(nw_state_set_timeout(state, 1000, 1.0), -1);
 
     /* c is pushed far into the future by mod, so only a times out */
     nw_state_entry *c = nw_state_add(state, 0.02, 0);
     CHECK(c != NULL);
     uint32_t c_id = c->id;
-    CHECK_EQ(nw_state_mod(state, c_id, 60.0), 0);
+    CHECK_EQ(nw_state_set_timeout(state, c_id, 60.0), 0);
 
     ut_run_for(0.2);
     CHECK_EQ(timeout_count, 1);

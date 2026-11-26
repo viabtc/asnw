@@ -97,18 +97,18 @@ static int on_thread_start(nw_ws_svr *svr, uint32_t index)
 static void on_thread_stop(nw_ws_svr *svr, uint32_t index)
 {
     ADD(thread_stops);
-    if (svr->raw_svr->clt_count != 0)
+    if (svr->raw_svr->ses_count != 0)
         ADD(wrong);
 }
 
 static nw_ws_svr *create(uint32_t threads)
 {
     static nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_ws_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.max_message_size = BIG_SIZE;
     cfg.thread_count = threads;
     nw_ws_svr_type type;
@@ -126,7 +126,7 @@ static nw_ws_svr *create(uint32_t threads)
     CHECK(svr->hub != NULL);
     CHECK(svr->front == NULL);
     CHECK_EQ(nw_ws_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->raw_svr->binds[0].sockfd, &addr), 0);
     return svr;
 }
 

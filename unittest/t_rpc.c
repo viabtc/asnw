@@ -62,11 +62,11 @@ static void clt_on_connect(nw_ses *ses, bool result)
 int main(void)
 {
     nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
 
     rpc_svr_type st;
     memset(&st, 0, sizeof(st));
@@ -81,10 +81,10 @@ int main(void)
     rpc_clt_cfg ccfg;
     memset(&ccfg, 0, sizeof(ccfg));
     nw_addr addr;
-    CHECK_EQ(nw_sock_cfg_parse(addr_str, &addr, &ccfg.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(addr_str, &addr, &ccfg.sock_type), 0);
     ccfg.name = "test";
     ccfg.addr_count = 1;
-    ccfg.addr_arr = &addr;
+    ccfg.addrs = &addr;
 
     rpc_clt_type ct;
     memset(&ct, 0, sizeof(ct));
@@ -110,11 +110,11 @@ int main(void)
     char c;
     CHECK_EQ(recv(mute, &c, 1, MSG_DONTWAIT), 0);
     close(mute);
-    CHECK_EQ(svr->raw_svr->clt_count, 1);
+    CHECK_EQ(svr->raw_svr->ses_count, 1);
 
     rpc_clt_release(clt);
     ut_run_for(0.05);
-    CHECK_EQ(svr->raw_svr->clt_count, 0);
+    CHECK_EQ(svr->raw_svr->ses_count, 0);
     rpc_svr_release(svr);
     return 0;
 }

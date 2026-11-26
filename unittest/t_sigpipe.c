@@ -38,7 +38,7 @@ int main(void)
     /* a plain client: connect, send one request, hang up before the reply */
     nw_addr addr;
     int type;
-    CHECK_EQ(nw_sock_cfg_parse(cfg, &addr, &type), 0);
+    CHECK_EQ(nw_sock_addr_parse(cfg, &addr, &type), 0);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     CHECK(fd >= 0);
     CHECK_EQ(connect(fd, NW_SOCKADDR(&addr), addr.addrlen), 0);

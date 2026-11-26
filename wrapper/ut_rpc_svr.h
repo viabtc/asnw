@@ -27,17 +27,17 @@ typedef struct rpc_svr_type {
      * in host byte order; pkg, pkg->ext and pkg->body are only valid
      * during the call */
     void (*on_recv_pkg)(nw_ses *ses, rpc_pkg *pkg);
-    /* optional, see nw_svr_type.on_new_connection */
-    void (*on_new_connection)(nw_ses *ses);
-    /* optional, see nw_svr_type.on_connection_close */
-    void (*on_connection_close)(nw_ses *ses);
+    /* optional, see nw_svr_type.on_open */
+    void (*on_open)(nw_ses *ses);
+    /* optional, see nw_svr_type.on_close */
+    void (*on_close)(nw_ses *ses);
 } rpc_svr_type;
 
 /* the fields are for reading only */
 typedef struct rpc_svr {
     nw_svr *raw_svr;
     void (*on_recv_pkg)(nw_ses *ses, rpc_pkg *pkg);
-    void (*on_new_connection)(nw_ses *ses);
+    void (*on_open)(nw_ses *ses);
 } rpc_svr;
 
 /* create a server from a nw_svr_cfg. cfg->max_pkg_size is overwritten with
@@ -50,7 +50,7 @@ int rpc_svr_start(rpc_svr *svr);
 int rpc_svr_stop(rpc_svr *svr);
 /* close every connection and free the server */
 void rpc_svr_release(rpc_svr *svr);
-/* close one connection, see nw_svr_close_clt */
-void rpc_svr_close_clt(rpc_svr *svr, nw_ses *ses);
+/* close one connection, see nw_svr_close */
+void rpc_svr_close(rpc_svr *svr, nw_ses *ses);
 
 # endif

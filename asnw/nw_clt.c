@@ -114,7 +114,7 @@ static int clt_close(nw_clt *clt)
     int ret = nw_ses_close(&clt->ses);
     /* remove the socket file a unix dgram client bound for itself */
     if (clt->local_path_bound) {
-        unlink(clt->ses.host_addr->un.sun_path);
+        unlink(clt->ses.local_addr->un.sun_path);
         clt->local_path_bound = false;
     }
     return ret;
@@ -149,7 +149,7 @@ static void close_and_reconnect(nw_clt *clt)
     int ret = call_on_close(clt);
     clt_close(clt);
     if (clt->close_requested) {
-        /* on_close called nw_clt_close: stay closed */
+        /* on_close called nw_clt_stop: stay closed */
         clt->close_requested = false;
         return;
     }
@@ -225,7 +225,7 @@ static void on_connect(nw_ses *ses, bool result)
         /* when this connection is lost the name may point elsewhere */
         clt->resolve_again = true;
         set_socket_option(clt, clt->ses.sockfd);
-        nw_sock_host_addr(ses->sockfd, ses->host_addr);
+        nw_sock_local_addr(ses->sockfd, ses->local_addr);
         if (clt->type.on_connect) {
             clt->type.on_connect(ses, result);
         }
@@ -258,7 +258,7 @@ int nw_clt_cfg_parse(const char *str, nw_clt_cfg *cfg)
 {
     cfg->name[0] = '\0';
     cfg->port = 0;
-    int ret = nw_sock_cfg_parse(str, &cfg->addr, &cfg->sock_type);
+    int ret = nw_sock_addr_parse(str, &cfg->addr, &cfg->sock_type);
     /* -4: tcp or udp, with a port, but what stands before it is no ip */
     if (ret != -4)
         return ret;
@@ -331,13 +331,13 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
         nw_clt_release(clt);
         return NULL;
     }
-    nw_addr *host_addr = malloc(sizeof(nw_addr));
-    if (host_addr == NULL) {
+    nw_addr *local_addr = malloc(sizeof(nw_addr));
+    if (local_addr == NULL) {
         nw_clt_release(clt);
         return NULL;
     }
-    memset(host_addr, 0, sizeof(nw_addr));
-    clt->ses.host_addr   = host_addr;
+    memset(local_addr, 0, sizeof(nw_addr));
+    clt->ses.local_addr   = local_addr;
     if (cfg->name[0]) {
         /* by name: the address comes from nw_dns when the client starts */
         if (cfg->sock_type != SOCK_STREAM && cfg->sock_type != SOCK_DGRAM) {
@@ -352,8 +352,8 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
         clt->port = cfg->port;
         clt->resolve_again = true;
     } else {
-        host_addr->family = cfg->addr.family;
-        host_addr->addrlen = cfg->addr.addrlen;
+        local_addr->family = cfg->addr.family;
+        local_addr->addrlen = cfg->addr.addrlen;
         memcpy(&clt->ses.peer_addr, &cfg->addr, sizeof(nw_addr));
     }
     clt->ses.sockfd      = -1;
@@ -398,16 +398,16 @@ static int connect_to_peer(nw_clt *clt)
     }
     clt->ses.sockfd = sockfd;
     /* the family can change from one address of a name to the next */
-    clt->ses.host_addr->family = clt->ses.peer_addr.family;
-    clt->ses.host_addr->addrlen = clt->ses.peer_addr.addrlen;
+    clt->ses.local_addr->family = clt->ses.peer_addr.family;
+    clt->ses.local_addr->addrlen = clt->ses.peer_addr.addrlen;
     if (clt->ses.peer_addr.family == AF_UNIX && clt->ses.sock_type == SOCK_DGRAM) {
-        nw_addr *host_addr = clt->ses.host_addr;
-        memset(host_addr, 0, sizeof(nw_addr));
-        host_addr->family = AF_UNIX;
-        host_addr->addrlen = sizeof(host_addr->un);
-        host_addr->un.sun_family = AF_UNIX;
-        generate_local_path(host_addr->un.sun_path, sizeof(host_addr->un.sun_path));
-        if (nw_ses_bind(&clt->ses, host_addr) < 0) {
+        nw_addr *local_addr = clt->ses.local_addr;
+        memset(local_addr, 0, sizeof(nw_addr));
+        local_addr->family = AF_UNIX;
+        local_addr->addrlen = sizeof(local_addr->un);
+        local_addr->un.sun_family = AF_UNIX;
+        generate_local_path(local_addr->un.sun_path, sizeof(local_addr->un.sun_path));
+        if (nw_ses_bind(&clt->ses, local_addr) < 0) {
             int bind_errno = errno;
             clt_close(clt);
             errno = bind_errno;
@@ -432,7 +432,7 @@ static int connect_to_peer(nw_clt *clt)
     } else {
         clt->connected = true;
         set_socket_option(clt, clt->ses.sockfd);
-        nw_sock_host_addr(clt->ses.sockfd, clt->ses.host_addr);
+        nw_sock_local_addr(clt->ses.sockfd, clt->ses.local_addr);
         if (nw_ses_start(&clt->ses) < 0)
             return -1;
         if (clt->name) {
@@ -446,7 +446,7 @@ static int connect_to_peer(nw_clt *clt)
     }
 }
 
-int nw_clt_close(nw_clt *clt)
+int nw_clt_stop(nw_clt *clt)
 {
     if (clt->in_on_close) {
         /* from inside on_close: the close in progress finishes the job,
@@ -469,7 +469,7 @@ void nw_clt_release(nw_clt *clt)
     if (!clt->custom_buf_pool && clt->buf_pool) {
         nw_buf_pool_release(clt->buf_pool);
     }
-    free(clt->ses.host_addr);
+    free(clt->ses.local_addr);
     free(clt->name);
     free(clt->addrs);
     free(clt);

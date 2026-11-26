@@ -39,12 +39,12 @@ int inner_decode_pkg(nw_ses *ses, void *data, size_t max)
 
 int outer_on_accept(nw_ses *ses, int sockfd, nw_addr *peer_addr)
 {
-    if (inner_svr->clt_count == 0) {
+    if (inner_svr->ses_count == 0) {
         printf("worker: %d, no available worker\n", worker_id);
         return -1;
     }
     /* pick one of the workers at random */
-    int worker = rand() % inner_svr->clt_count;
+    int worker = rand() % inner_svr->ses_count;
     nw_svr_iterator iter;
     nw_svr_iter_init(&iter, inner_svr);
     nw_ses *curr = nw_svr_next(&iter);
@@ -64,12 +64,12 @@ int outer_on_accept(nw_ses *ses, int sockfd, nw_addr *peer_addr)
     return 0;
 }
 
-void outer_on_new_connection(nw_ses *ses)
+void outer_on_open(nw_ses *ses)
 {
     printf("worker: %d: new connection from: %s\n", worker_id, nw_sock_human_addr(&ses->peer_addr));
 }
 
-void outer_on_connection_close(nw_ses *ses)
+void outer_on_close(nw_ses *ses)
 {
     printf("worker: %d: connection: %s close\n", worker_id, nw_sock_human_addr(&ses->peer_addr));
 }
@@ -91,12 +91,12 @@ void outer_on_error_msg(nw_ses *ses, const char *msg)
     printf("worker: %d, outer error: %s\n", worker_id, msg);
 }
 
-void inner_svr_on_new_connection(nw_ses *ses)
+void inner_svr_on_open(nw_ses *ses)
 {
     printf("new worker connection\n");
 }
 
-void inner_svr_on_connection_close(nw_ses *ses)
+void inner_svr_on_close(nw_ses *ses)
 {
     printf("worker connection close\n");
 }
@@ -133,8 +133,8 @@ void inner_clt_on_recv_pkg(nw_ses *ses, void *data, size_t size)
 
 void inner_clt_on_recv_fd(nw_ses *ses, int fd)
 {
-    if (nw_svr_add_clt_fd(outer_svr, fd) < 0) {
-        printf("worker: %d: nw_svr_add_clt_fd fail\n", worker_id);
+    if (nw_svr_add_fd(outer_svr, fd) < 0) {
+        printf("worker: %d: nw_svr_add_fd fail\n", worker_id);
         close(fd);
     } else {
         printf("worker: %d recv fd success\n", worker_id);
@@ -150,7 +150,7 @@ int init_outer_svr(nw_svr_bind *bind)
 {
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.bind_arr = bind;
+    cfg.binds = bind;
     cfg.bind_count = 1;
     cfg.max_pkg_size = max_pkg_size;
 
@@ -158,8 +158,8 @@ int init_outer_svr(nw_svr_bind *bind)
     memset(&type, 0, sizeof(type));
     type.decode_pkg = outer_decode_pkg;
     type.on_accept = outer_on_accept;
-    type.on_new_connection = outer_on_new_connection;
-    type.on_connection_close = outer_on_connection_close;
+    type.on_open = outer_on_open;
+    type.on_close = outer_on_close;
     type.on_recv_pkg = outer_on_recv_pkg;
     type.on_error_msg = outer_on_error_msg;
 
@@ -174,21 +174,21 @@ int init_outer_svr(nw_svr_bind *bind)
 int init_inner_svr(void)
 {
     nw_svr_bind bind;
-    if (nw_sock_cfg_parse(inner_sock_cfg, &bind.addr, &bind.sock_type) < 0) {
+    if (nw_sock_addr_parse(inner_sock_cfg, &bind.addr, &bind.sock_type) < 0) {
         return -1;
     }
 
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.bind_count = 1;
     cfg.max_pkg_size = max_pkg_size;
 
     nw_svr_type type;
     memset(&type, 0, sizeof(type));
     type.decode_pkg = inner_decode_pkg;
-    type.on_new_connection = inner_svr_on_new_connection;
-    type.on_connection_close = inner_svr_on_connection_close;
+    type.on_open = inner_svr_on_open;
+    type.on_close = inner_svr_on_close;
     type.on_recv_pkg = inner_svr_on_recv_pkg;
     type.on_error_msg = inner_svr_on_error_msg;
 
@@ -204,7 +204,7 @@ int init_inner_clt(void)
 {
     nw_clt_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
-    if (nw_sock_cfg_parse(inner_sock_cfg, &cfg.addr, &cfg.sock_type) < 0) {
+    if (nw_sock_addr_parse(inner_sock_cfg, &cfg.addr, &cfg.sock_type) < 0) {
         return -1;
     }
     cfg.max_pkg_size = max_pkg_size;
@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
     }
 
     nw_svr_bind bind;
-    if (nw_sock_cfg_parse(argv[1], &bind.addr, &bind.sock_type) < 0) {
+    if (nw_sock_addr_parse(argv[1], &bind.addr, &bind.sock_type) < 0) {
         printf("parse bind: %s fail\n", argv[1]);
         return 0;
     }

@@ -58,7 +58,7 @@ int main(void)
 
     nw_addr svr_addr;
     int type;
-    CHECK_EQ(nw_sock_cfg_parse(cfg, &svr_addr, &type), 0);
+    CHECK_EQ(nw_sock_addr_parse(cfg, &svr_addr, &type), 0);
 
     struct sockaddr_un un;
     int short_fd = bound_client("a", &un);

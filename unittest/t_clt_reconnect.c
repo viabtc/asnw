@@ -31,7 +31,7 @@ static int clt_on_close(nw_ses *ses)
     return 0;
 }
 
-static void svr_on_new_connection(nw_ses *ses)
+static void svr_on_open(nw_ses *ses)
 {
     svr_new++;
 }
@@ -62,21 +62,21 @@ int main(void)
     memset(&st, 0, sizeof(st));
     st.decode_pkg = ut_line_decode;
     st.on_recv_pkg = on_recv_pkg;
-    st.on_new_connection = svr_on_new_connection;
+    st.on_open = svr_on_open;
     svr = ut_svr(cfg, &st, 1024, NULL);
     ut_run_for(2.0);
     CHECK_EQ(connect_ok, 1);
     CHECK(nw_clt_connected(clt));
     ut_run_for(0.05);
     CHECK_EQ(svr_new, 1);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
 
     /* server drops the connection, client notices and comes back */
     int closes = close_count;
     nw_svr_iterator iter;
     nw_svr_iter_init(&iter, svr);
-    nw_svr_close_clt(svr, nw_svr_next(&iter));
-    CHECK_EQ(svr->clt_count, 0);
+    nw_svr_close(svr, nw_svr_next(&iter));
+    CHECK_EQ(svr->ses_count, 0);
     ut_run_for(2.0);
     CHECK_EQ(close_count, closes + 1);
     CHECK_EQ(connect_ok, 2);

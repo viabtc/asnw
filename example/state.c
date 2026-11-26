@@ -50,8 +50,8 @@ int main(int argc, char *argv[])
     if (!entry) {
         error(1, errno, "nw_state_get fail");
     }
-    if (nw_state_mod(state, entry->id, 5.0) < 0) {
-        error(1, errno, "nw_state_mod fail");
+    if (nw_state_set_timeout(state, entry->id, 5.0) < 0) {
+        error(1, errno, "nw_state_set_timeout fail");
     }
     nw_state_del(state, 1);
 

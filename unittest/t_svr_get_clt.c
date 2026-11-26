@@ -1,5 +1,5 @@
 /*
- * nw_svr_get_clt / nw_svr_send: getting back to a connection by id after
+ * nw_svr_get / nw_svr_send: getting back to a connection by id after
  * asynchronous work. Shows why the id and not the pointer must be kept:
  * the nw_ses memory of a closed connection is reused by the next one.
  */
@@ -32,10 +32,10 @@ int main(void)
     type.on_recv_pkg = on_recv_pkg;
     svr = ut_svr("tcp@127.0.0.1:0", &type, 1024, NULL);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->binds[0].sockfd, &addr), 0);
 
-    CHECK(nw_svr_get_clt(svr, 0) == NULL);
-    CHECK(nw_svr_get_clt(svr, 1) == NULL);
+    CHECK(nw_svr_get(svr, 0) == NULL);
+    CHECK(nw_svr_get(svr, 1) == NULL);
     CHECK_EQ(nw_svr_send(svr, 1, "x\n", 2), -1);
 
     /* client a asks, and is still there when the answer is ready */
@@ -46,7 +46,7 @@ int main(void)
     uint64_t a_id = last_id;
     nw_ses *a_ses = last_ses;
     CHECK(a_id != 0);
-    CHECK(nw_svr_get_clt(svr, a_id) == a_ses);
+    CHECK(nw_svr_get(svr, a_id) == a_ses);
     CHECK_EQ(nw_svr_send(svr, a_id, "answer\n", 7), 0);
     CHECK_EQ(read(a, buf, sizeof(buf)), 7);
 
@@ -55,8 +55,8 @@ int main(void)
     ut_run_for(0.05);
     close(a);
     ut_run_for(0.05);
-    CHECK_EQ(svr->clt_count, 0);
-    CHECK(nw_svr_get_clt(svr, a_id) == NULL);
+    CHECK_EQ(svr->ses_count, 0);
+    CHECK(nw_svr_get(svr, a_id) == NULL);
     CHECK_EQ(nw_svr_send(svr, a_id, "answer\n", 7), -1);
 
     /* client b connects and gets the session memory a had: a pointer kept
@@ -67,14 +67,14 @@ int main(void)
     uint64_t b_id = last_id;
     CHECK(last_ses == a_ses);
     CHECK(b_id != a_id);
-    CHECK(nw_svr_get_clt(svr, a_id) == NULL);
-    CHECK(nw_svr_get_clt(svr, b_id) == a_ses);
+    CHECK(nw_svr_get(svr, a_id) == NULL);
+    CHECK(nw_svr_get(svr, b_id) == a_ses);
     CHECK_EQ(nw_svr_send(svr, a_id, "for a\n", 6), -1);
     CHECK_EQ(recv(b, buf, sizeof(buf), MSG_DONTWAIT), -1);      /* b got nothing meant for a */
 
     /* closing from the server side removes the id as well */
-    nw_svr_close_clt(svr, nw_svr_get_clt(svr, b_id));
-    CHECK(nw_svr_get_clt(svr, b_id) == NULL);
+    nw_svr_close(svr, nw_svr_get(svr, b_id));
+    CHECK(nw_svr_get(svr, b_id) == NULL);
     close(b);
 
     /* many connections: every id resolves to its own session */
@@ -83,8 +83,8 @@ int main(void)
     for (int i = 0; i < N; ++i)
         fds[i] = tcp_connect(&addr);
     ut_run_for(0.2);
-    CHECK_EQ(svr->clt_count, N);
-    CHECK_EQ(nw_dict_count(svr->clt_dict), N);
+    CHECK_EQ(svr->ses_count, N);
+    CHECK_EQ(nw_dict_count(svr->ses_dict), N);
     /* the iterator visits every connection exactly once */
     nw_svr_iterator iter;
     nw_ses *ses;
@@ -92,7 +92,7 @@ int main(void)
     uint64_t id_sum = 0, expect_sum = 0;
     nw_svr_iter_init(&iter, svr);
     while ((ses = nw_svr_next(&iter)) != NULL) {
-        CHECK(nw_svr_get_clt(svr, ses->id) == ses);
+        CHECK(nw_svr_get(svr, ses->id) == ses);
         id_sum += ses->id;
         listed++;
     }
@@ -110,13 +110,13 @@ int main(void)
     while ((ses = nw_svr_next(&iter)) != NULL) {
         listed++;
         if (ses->id % 3 == 0) {
-            nw_svr_close_clt(svr, ses);
+            nw_svr_close(svr, ses);
             closed++;
         }
     }
     CHECK_EQ(listed, N);
     CHECK_EQ(closed, N / 3);
-    CHECK_EQ(svr->clt_count, N - closed);
+    CHECK_EQ(svr->ses_count, N - closed);
     listed = 0;
     nw_svr_iter_init(&iter, svr);
     while ((ses = nw_svr_next(&iter)) != NULL) {
@@ -129,15 +129,15 @@ int main(void)
     ut_run_for(0.05);
     int still_open = 0;
     for (int i = 0; i < N; i += 2) {
-        if (nw_svr_get_clt(svr, b_id + 1 + i) != NULL)
+        if (nw_svr_get(svr, b_id + 1 + i) != NULL)
             still_open++;
         close(fds[i]);
     }
     ut_run_for(0.2);
-    CHECK_EQ(svr->clt_count, N - closed - still_open);
-    CHECK_EQ(nw_dict_count(svr->clt_dict), svr->clt_count);
+    CHECK_EQ(svr->ses_count, N - closed - still_open);
+    CHECK_EQ(nw_dict_count(svr->ses_dict), svr->ses_count);
 
-    CHECK(svr->clt_count > 50);
+    CHECK(svr->ses_count > 50);
     nw_svr_release(svr);            /* with the rest still connected */
     for (int i = 1; i < N; i += 2)
         close(fds[i]);

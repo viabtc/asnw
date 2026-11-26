@@ -105,13 +105,13 @@ int main(int argc, char *argv[])
     }
 
     int bind_count = argc - 1;
-    nw_svr_bind *bind_arr = calloc(bind_count, sizeof(nw_svr_bind));
-    if (bind_arr == NULL) {
+    nw_svr_bind *binds = calloc(bind_count, sizeof(nw_svr_bind));
+    if (binds == NULL) {
         printf("malloc fail\n");
         exit(1);
     }
     for (int i = 0; i < bind_count; ++i) {
-        int ret = nw_sock_cfg_parse(argv[i + 1], &bind_arr[i].addr, &bind_arr[i].sock_type);
+        int ret = nw_sock_addr_parse(argv[i + 1], &binds[i].addr, &binds[i].sock_type);
         if (ret < 0) {
             printf("parse bind: %s fail: %d\n", argv[i + 1], ret);
             exit(1);
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     memset(&cfg, 0, sizeof(cfg));
     cfg.thread_count = thread_count;
     cfg.bind_count = bind_count;
-    cfg.bind_arr = bind_arr;
+    cfg.binds = binds;
     cfg.buf_limit = 16;
     cfg.idle_timeout = 60;
     cfg.ping_interval = 20;

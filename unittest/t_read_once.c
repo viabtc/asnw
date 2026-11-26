@@ -19,7 +19,7 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
     nw_ses_send(ses, "ok\n", 3);
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     close_count++;
 }
@@ -48,10 +48,10 @@ int main(void)
     memset(&type, 0, sizeof(type));
     type.decode_pkg = ut_line_decode;
     type.on_recv_pkg = on_recv_pkg;
-    type.on_connection_close = on_connection_close;
+    type.on_close = on_close;
     nw_svr *svr = ut_svr("tcp@127.0.0.1:0", &type, 1024, NULL);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->binds[0].sockfd, &addr), 0);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     CHECK_EQ(connect(fd, NW_SOCKADDR(&addr), sizeof(addr.in)), 0);
     ut_run_for(0.05);
@@ -101,7 +101,7 @@ int main(void)
     CHECK_EQ(send(fd, full, sizeof(full), 0), (ssize_t)sizeof(full));
     ut_run_for(0.05);
     CHECK_EQ(recv_count, 2);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
 
     /* the last bytes and the close arrive together: both are seen */
     recv_count = 0;
@@ -110,7 +110,7 @@ int main(void)
     ut_run_for(0.05);
     CHECK_EQ(recv_count, 1);
     CHECK_EQ(close_count, 1);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
 
     /* a connection that is shutting down still notices the peer leave */
     fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -120,13 +120,13 @@ int main(void)
     nw_svr_iter_init(&iter, svr);
     nw_ses *ses = nw_svr_next(&iter);
     CHECK(ses != NULL);
-    nw_svr_shutdown_clt(svr, ses);
+    nw_svr_shutdown(svr, ses);
     CHECK_EQ(send(fd, "ignored\n", 8, 0), 8);
     ut_run_for(0.05);
-    CHECK_EQ(svr->clt_count, 1);
+    CHECK_EQ(svr->ses_count, 1);
     close(fd);
     ut_run_for(0.1);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
     CHECK_EQ(close_count, 2);
 
     nw_svr_release(svr);

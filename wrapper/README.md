@@ -85,13 +85,13 @@ static void on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
 int main(void)
 {
     nw_svr_bind bind;
-    if (nw_sock_cfg_parse("tcp@127.0.0.1:4000", &bind.addr, &bind.sock_type) < 0)
+    if (nw_sock_addr_parse("tcp@127.0.0.1:4000", &bind.addr, &bind.sock_type) < 0)
         return 1;
 
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
 
     rpc_svr_type type;
     memset(&type, 0, sizeof(type));
@@ -105,12 +105,12 @@ int main(void)
 }
 ```
 
-The config is a plain `nw_svr_cfg`, so a server can listen on several addresses of different types. `rpc_svr_create` overwrites two of its fields: `max_pkg_size` (1M) and `idle_timeout` (3 seconds, see Heartbeats). `on_new_connection` and `on_connection_close` are optional and behave as in `nw_svr`.
+The config is a plain `nw_svr_cfg`, so a server can listen on several addresses of different types. `rpc_svr_create` overwrites two of its fields: `max_pkg_size` (1M) and `idle_timeout` (3 seconds, see Heartbeats). `on_open` and `on_close` are optional and behave as in `nw_svr`.
 
 `svr->raw_svr` is the `nw_svr` underneath, for everything `rpc_svr` does not wrap: finding a connection by id, walking the connections, flow control. To push to a client, keep its `ses->id` and send when there is something to say:
 
 ```c
-nw_ses *ses = nw_svr_get_clt(svr->raw_svr, id);
+nw_ses *ses = nw_svr_get(svr->raw_svr, id);
 if (ses)
     rpc_send(ses, &push);
 ```
@@ -148,9 +148,9 @@ int main(void)
     memset(&cfg, 0, sizeof(cfg));
     cfg.name = "demo";
     cfg.addr_count = 2;
-    cfg.addr_arr = addr;
-    if (nw_sock_cfg_parse("tcp@127.0.0.1:4000", &addr[0], &cfg.sock_type) < 0 ||
-        nw_sock_cfg_parse("tcp@127.0.0.1:4001", &addr[1], &cfg.sock_type) < 0)
+    cfg.addrs = addr;
+    if (nw_sock_addr_parse("tcp@127.0.0.1:4000", &addr[0], &cfg.sock_type) < 0 ||
+        nw_sock_addr_parse("tcp@127.0.0.1:4001", &addr[1], &cfg.sock_type) < 0)
         return 1;
 
     rpc_clt_type type;

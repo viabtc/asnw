@@ -26,7 +26,7 @@ it; do not guess a signature.
 | `nw_timer` | One-shot and repeating timers | |
 | `nw_ses` | A session: one socket and its buffers | You receive it in callbacks; `nw_ses_send` and flow control live here |
 | `nw_evt` | The event loop of the thread: `nw_loop_run`, `nw_loop_break`, `nw_loop_release` | |
-| `nw_sock` | Addresses: `nw_sock_cfg_parse("tcp@127.0.0.1:80")`, socket options | |
+| `nw_sock` | Addresses: `nw_sock_addr_parse("tcp@127.0.0.1:80")`, socket options | |
 | `nw_buf` | Buffer pool and object cache | Internal; a program rarely needs it |
 | `nw_dict` | Hash table with uint64 keys | Internal, usable on its own |
 
@@ -57,12 +57,12 @@ int main(void)
 {
     nw_svr_bind bind;
     memset(&bind, 0, sizeof(bind));
-    if (nw_sock_cfg_parse("tcp@127.0.0.1:1234", &bind.addr, &bind.sock_type) < 0)
+    if (nw_sock_addr_parse("tcp@127.0.0.1:1234", &bind.addr, &bind.sock_type) < 0)
         return 1;
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.max_pkg_size = 10240;
     nw_svr_type type;
     memset(&type, 0, sizeof(type));
@@ -102,7 +102,7 @@ HTTP server sets `on_request` in `nw_http_svr_type` and answers with
 3. **Keep `ses->id`, not the `nw_ses` pointer.** A `nw_ses` is valid until
    its connection closes, then the memory is reused for another client.
    Across anything asynchronous keep the id (unique, never 0, never
-   reused) and use `nw_svr_send(svr, id, ...)`, `nw_svr_get_clt`,
+   reused) and use `nw_svr_send(svr, id, ...)`, `nw_svr_get`,
    `nw_http_reply_id`, `nw_ws_send_text_id`.
 
 4. **What a callback is given is only valid inside the callback.** The
@@ -115,8 +115,8 @@ HTTP server sets `on_request` in `nw_http_svr_type` and answers with
 6. **After `nw_ses_send` returns -1, do not use the session**: for a
    connection it is closed already. 0 means sent or queued, not delivered.
 
-7. **`nw_svr_close_clt` drops what was not sent yet.** To say something
-   last, send it and call `nw_svr_shutdown_clt`.
+7. **`nw_svr_close` drops what was not sent yet.** To say something
+   last, send it and call `nw_svr_shutdown`.
 
 8. **Sending is not limited by default.** `buf_limit` 0 queues without
    bound. A program that sends a lot to slow peers looks at
@@ -187,12 +187,17 @@ New names follow the ones that exist. The patterns:
   `nw_<module>_cfg`, its set of callbacks `nw_<module>_type`, a single
   callback `nw_<module>_callback`, an iterator `nw_<module>_iterator` with
   `nw_<module>_iter_init` and `nw_<module>_next`. No `_t` suffix.
-- **Life of an object**: `create`, `start`, `stop`, `release`. `release`
-  frees an object, `free` gives an item back to a pool (`nw_buf_free`),
-  `cancel` forgets something asynchronous (`nw_dns_cancel`). `close` drops
-  a connection now, `shutdown` closes it once what is pending was sent.
+- **Life of an object**: `create`, `start`, `stop`, `release`, for
+  servers and clients alike. `stop` and `release` act on the object,
+  `close` and `shutdown` on one of its connections: `close` drops it now,
+  `shutdown` closes it once what is pending was sent (`nw_svr_close`,
+  `nw_svr_shutdown`, `nw_hub_close`). `free` gives an item back to a pool
+  (`nw_buf_free`), `cancel` forgets something asynchronous
+  (`nw_dns_cancel`).
 - **Callbacks** start with `on_`. The one exception is `decode_pkg`, which
-  is a question, not an event.
+  is a question, not an event. A connection of a server opens and closes:
+  `on_open`, `on_close`, in `nw_svr`, `nw_hub`, `nw_http` and `nw_ws`. A
+  client connects, or fails to: `on_connect(ses, result)`, `on_close`.
 - **By id**: a function that takes an id instead of a `nw_ses` gets the
   `_id` suffix only when the `nw_ses` version has the same name:
   `nw_http_reply` / `nw_http_reply_id`. `nw_svr_send` and `nw_hub_send`
@@ -203,7 +208,8 @@ New names follow the ones that exist. The patterns:
   constants; a default is `NW_<MODULE>_DEFAULT_<WHAT>`. Times are seconds
   in a `double`, called `<what>_timeout` or `<what>_interval`.
 - **Parameters**: bytes are `data, size`, never `len`. The pointer of the
-  user is `privdata`.
+  user is `privdata`. An array is a plural with its count: `binds` and
+  `bind_count`, `headers` and `header_count`.
 
 Words that mean one thing each:
 
@@ -218,20 +224,15 @@ Words that mean one thing each:
 | `message` | A WebSocket message | `on_message`, `max_message_size` |
 | `pkg` | One message of the application on a `nw_svr` or `nw_clt` | `decode_pkg`, `on_recv_pkg` |
 | `body` | The payload of an HTTP message | `req->body`, `body_size` |
-| `bind` | An address a server listens on | `bind_arr`, `bind_count`, `bind_list` |
-| `clt` in a `nw_svr_` name | A connection of the server; the client object is `nw_clt` | `nw_svr_close_clt`, `clt_count` |
+| `bind` | An address a server listens on | `binds`, `bind_count`, `binds` |
 | `name` | The name of a server to connect to | `cfg.name`, `NW_DNS_MAX_NAME` |
-| `host` | This machine's side of a socket | `ses->host_addr`, `nw_sock_host_addr` |
+| `local`, `peer` | The two ends of a socket | `ses->local_addr`, `ses->peer_addr` |
+| `ses` | A connection, in the names of a server | `ses_count`, `nw_svr_get` returns one |
 | `post` | The HTTP method | `nw_req_post` |
 | `run` | To have a function called on another thread | `nw_hub_run` |
 
-Kept as they are for the programs already written against them, not to be
-taken as patterns: the loop functions are `nw_loop_*` although their file
-is `nw_evt`; a connection opening and closing is `on_new_connection` /
-`on_connection_close` for `nw_svr`, `nw_hub` and `nw_http`, `on_connect` /
-`on_close` for `nw_clt`, and `on_open` / `on_close` for `nw_ws`, where the
-words are those of WebSocket and `on_open` comes after the handshake; a
-client has `nw_clt_close` where servers have `stop`.
+One name does not follow its file: the loop functions are `nw_loop_*`
+and live in `nw_evt`.
 
 ## Changing the library
 

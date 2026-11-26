@@ -40,12 +40,12 @@ static void run_server(int port, const char *unix_cfg)
     char tcp_cfg[64];
     snprintf(tcp_cfg, sizeof(tcp_cfg), "tcp@127.0.0.1:%d", port);
     nw_svr_bind binds[2];
-    CHECK_EQ(nw_sock_cfg_parse(tcp_cfg, &binds[0].addr, &binds[0].sock_type), 0);
-    CHECK_EQ(nw_sock_cfg_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(tcp_cfg, &binds[0].addr, &binds[0].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
     nw_http_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 2;
-    cfg.bind_arr = binds;
+    cfg.binds = binds;
     nw_http_svr_type type;
     memset(&type, 0, sizeof(type));
     type.on_request = on_request;

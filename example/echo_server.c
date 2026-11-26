@@ -21,12 +21,12 @@ int decode_pkg(nw_ses *ses, void *data, size_t max)
     return 0;
 }
 
-void on_new_connection(nw_ses *ses)
+void on_open(nw_ses *ses)
 {
     printf("new connection from: %s\n", nw_sock_human_addr(&ses->peer_addr));
 }
 
-void on_connection_close(nw_ses *ses)
+void on_close(nw_ses *ses)
 {
     printf("connection: %s close\n", nw_sock_human_addr(&ses->peer_addr));
 }
@@ -64,7 +64,7 @@ void on_error_msg(nw_ses *ses, const char *msg)
 void on_timer(nw_timer *timer, void *privdata)
 {
     nw_svr *svr = (nw_svr *)privdata;
-    printf("clt count: %u\n", svr->clt_count);
+    printf("clt count: %u\n", svr->ses_count);
 }
 
 int main(int argc, char *argv[])
@@ -75,14 +75,14 @@ int main(int argc, char *argv[])
     }
 
     int bind_count = argc - 1;
-    nw_svr_bind *bind_arr = malloc(sizeof(nw_svr_bind) * bind_count);
-    if (bind_arr == NULL) {
+    nw_svr_bind *binds = malloc(sizeof(nw_svr_bind) * bind_count);
+    if (binds == NULL) {
         printf("malloc fail\n");
         exit(0);
     }
-    memset(bind_arr, 0, sizeof(nw_svr_bind) * bind_count);
+    memset(binds, 0, sizeof(nw_svr_bind) * bind_count);
     for (int i = 0; i < bind_count; ++i) {
-        int ret = nw_sock_cfg_parse(argv[i + 1], &bind_arr[i].addr, &bind_arr[i].sock_type);
+        int ret = nw_sock_addr_parse(argv[i + 1], &binds[i].addr, &binds[i].sock_type);
         if (ret < 0) {
             printf("parse bind: %s fail: %d\n", argv[1], ret);
             exit(0);
@@ -92,14 +92,14 @@ int main(int argc, char *argv[])
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = bind_count;
-    cfg.bind_arr = bind_arr;
+    cfg.binds = binds;
     cfg.max_pkg_size = 10240;
 
     nw_svr_type type;
     memset(&type, 0, sizeof(type));
     type.decode_pkg = decode_pkg;
-    type.on_new_connection = on_new_connection;
-    type.on_connection_close = on_connection_close;
+    type.on_open = on_open;
+    type.on_close = on_close;
     type.on_recv_pkg = on_recv_pkg;
     type.on_recv_fd = on_recv_fd;
     type.on_error_msg = on_error_msg;

@@ -227,7 +227,7 @@ static int send_frame(nw_ses *ses, uint8_t opcode, const void *data, size_t size
     if (nw_ses_send(ses, buf, header_size) < 0)
         return -1;
     /* go by the id: after a failed send the memory of ses may be reused */
-    if (nw_svr_get_clt(raw_svr, id) != ses)
+    if (nw_svr_get(raw_svr, id) != ses)
         return -1;
     return nw_ses_send(ses, data, size);
 }
@@ -282,7 +282,7 @@ static void on_id_request(nw_hub *hub, void *data, size_t size)
 {
     struct id_request *request = data;
     nw_svr *raw_svr = nw_hub_svr(hub);
-    nw_ses *ses = nw_svr_get_clt(raw_svr, request->id);
+    nw_ses *ses = nw_svr_get(raw_svr, request->id);
     if (ses == NULL)
         return;
     size_t data_size = size - sizeof(struct id_request);
@@ -317,7 +317,7 @@ static int send_id(nw_ws_svr *svr, uint64_t id, uint8_t opcode, const void *data
     nw_ws_svr *here = server_here(svr, id);
     if (here == NULL)
         return post_id_request(svr, id, opcode, 0, data, size);
-    nw_ses *ses = nw_svr_get_clt(here->raw_svr, id);
+    nw_ses *ses = nw_svr_get(here->raw_svr, id);
     if (ses == NULL || !can_send(ses))
         return -1;
     return send_frame(ses, opcode, data, size);
@@ -408,11 +408,11 @@ static void ws_close(nw_ses *ses, nw_ws_conn *conn, uint16_t code, const char *r
     uint64_t id = ses->id;
     if (send_frame(ses, NW_WS_OP_CLOSE, payload, 2 + reason_size) < 0)
         return;
-    if (nw_svr_get_clt(raw_svr, id) != ses)
+    if (nw_svr_get(raw_svr, id) != ses)
         return;
     /* nothing is sent after the close frame, what the client still sends
      * is ignored, and the connection ends when it hangs up */
-    nw_svr_shutdown_clt(raw_svr, ses);
+    nw_svr_shutdown(raw_svr, ses);
 }
 
 void nw_ws_close(nw_ses *ses, uint16_t code, const char *reason)
@@ -423,7 +423,7 @@ void nw_ws_close(nw_ses *ses, uint16_t code, const char *reason)
     if (ses->closing)
         return;
     if (!conn->upgraded) {
-        nw_svr_close_clt(ses->svr, ses);
+        nw_svr_close(ses->svr, ses);
         return;
     }
     ws_close(ses, conn, code, reason);
@@ -466,9 +466,9 @@ static void refuse_upgrade(nw_ws_svr *svr, nw_ses *ses, nw_ws_conn *conn, int st
 
     nw_svr *raw_svr = ses->svr;
     uint64_t id = ses->id;
-    if (nw_ses_send(ses, response, size) < 0 || nw_svr_get_clt(raw_svr, id) != ses)
+    if (nw_ses_send(ses, response, size) < 0 || nw_svr_get(raw_svr, id) != ses)
         return;
-    nw_svr_shutdown_clt(raw_svr, ses);
+    nw_svr_shutdown(raw_svr, ses);
 }
 
 /* does a comma separated header value hold this token, case insensitive */
@@ -599,9 +599,9 @@ static void on_handshake(nw_ws_svr *svr, nw_ses *ses, nw_ws_conn *conn, char *da
     conn->upgraded = true;
     /* the handshake made its deadline. from here on the idle timeout paces
      * the pings, or is the keep-alive timeout itself */
-    nw_svr_set_clt_deadline(raw_svr, ses, 0);
-    nw_svr_set_clt_idle_timeout(raw_svr, ses, svr->ping_interval > 0 ? svr->ping_interval : svr->idle_timeout);
-    if (nw_ses_send(ses, response, len) < 0 || nw_svr_get_clt(raw_svr, id) != ses)
+    nw_svr_set_deadline(raw_svr, ses, 0);
+    nw_svr_set_idle_timeout(raw_svr, ses, svr->ping_interval > 0 ? svr->ping_interval : svr->idle_timeout);
+    if (nw_ses_send(ses, response, len) < 0 || nw_svr_get(raw_svr, id) != ses)
         return;
     if (svr->type.on_open)
         svr->type.on_open(ses);
@@ -830,13 +830,13 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
  * server
  */
 
-static void on_new_connection(nw_ses *ses)
+static void on_open(nw_ses *ses)
 {
     /* the upgrade request has to be here in time */
-    nw_svr_set_clt_deadline(ses->svr, ses, NW_WS_HANDSHAKE_TIMEOUT);
+    nw_svr_set_deadline(ses->svr, ses, NW_WS_HANDSHAKE_TIMEOUT);
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     nw_ws_svr *svr = nw_ws_svr_of(ses);
     nw_ws_conn *conn = ses->privdata;
@@ -855,7 +855,7 @@ int nw_ws_close_id(nw_ws_svr *svr, uint64_t id, uint16_t code, const char *reaso
     nw_ws_svr *here = server_here(svr, id);
     if (here == NULL)
         return post_id_request(svr, id, NW_WS_OP_CLOSE, code, reason, reason ? strlen(reason) + 1 : 0);
-    nw_ses *ses = nw_svr_get_clt(here->raw_svr, id);
+    nw_ses *ses = nw_svr_get(here->raw_svr, id);
     if (ses)
         nw_ws_close(ses, code, reason);
     return 0;
@@ -896,7 +896,7 @@ static void on_timeout(nw_ses *ses)
     nw_ws_svr *svr = nw_ws_svr_of(ses);
     nw_ws_conn *conn = ses->privdata;
     if (!conn->upgraded) {
-        nw_svr_close_clt(svr->raw_svr, ses);
+        nw_svr_close(svr->raw_svr, ses);
         return;
     }
     double silence = ev_now(nw_default_loop) - ses->active_time;
@@ -953,7 +953,7 @@ static nw_ws_svr *ws_svr_new(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type, void *pri
     nw_svr_cfg raw_cfg;
     memset(&raw_cfg, 0, sizeof(raw_cfg));
     raw_cfg.bind_count = cfg->bind_count;
-    raw_cfg.bind_arr = cfg->bind_arr;
+    raw_cfg.binds = cfg->binds;
     /* room for the biggest frame, and at least for an upgrade request */
     raw_cfg.max_pkg_size = svr->max_message_size + NW_WS_MAX_HEADER_SIZE;
     if (raw_cfg.max_pkg_size < NW_WS_HANDSHAKE_MAX_SIZE)
@@ -966,8 +966,8 @@ static nw_ws_svr *ws_svr_new(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type, void *pri
     memset(&raw_type, 0, sizeof(raw_type));
     raw_type.decode_pkg = decode_pkg;
     raw_type.on_recv_pkg = on_recv_pkg;
-    raw_type.on_new_connection = on_new_connection;
-    raw_type.on_connection_close = on_connection_close;
+    raw_type.on_open = on_open;
+    raw_type.on_close = on_close;
     raw_type.on_error_msg = on_error_msg;
     raw_type.on_timeout = on_timeout;
     raw_type.on_drain = on_drain;
@@ -1029,7 +1029,7 @@ nw_ws_svr *nw_ws_svr_create(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type, void *priv
     if (type->on_privdata_alloc && !type->on_privdata_free)
         return NULL;
     for (uint32_t i = 0; i < cfg->bind_count; ++i) {
-        if (cfg->bind_arr[i].sock_type != SOCK_STREAM)
+        if (cfg->binds[i].sock_type != SOCK_STREAM)
             return NULL;
     }
     if (cfg->thread_count == 0)

@@ -1,6 +1,6 @@
 /*
  * nw_clt on_close: sending from it fails quietly instead of recursing
- * (regression: it used to call on_close again without end), nw_clt_close
+ * (regression: it used to call on_close again without end), nw_clt_stop
  * from it means "stay closed", and a connect attempt that gets no answer
  * is given up after the timeout and retried.
  */
@@ -27,7 +27,7 @@ static int on_close(nw_ses *ses)
     close_count++;
     CHECK_EQ(nw_ses_send(ses, "last words\n", 11), -1);     /* the connection is over */
     if (stay_closed)
-        CHECK_EQ(nw_clt_close(clt), 0);
+        CHECK_EQ(nw_clt_stop(clt), 0);
     return 0;
 }
 
@@ -84,20 +84,20 @@ int main(void)
     CHECK(nw_clt_connected(clt));
     CHECK_EQ(nw_ses_send(&clt->ses, "works again\n", 12), 0);
 
-    /* nw_clt_close from the application: on_close once, no reconnect */
-    CHECK_EQ(nw_clt_close(clt), 0);
+    /* nw_clt_stop from the application: on_close once, no reconnect */
+    CHECK_EQ(nw_clt_stop(clt), 0);
     CHECK_EQ(close_count, 2);
     ut_run_for(0.4);
     CHECK_EQ(connect_ok, 2);
     CHECK(!nw_clt_connected(clt));
 
-    /* nw_clt_close from inside on_close: the lost connection is not
+    /* nw_clt_stop from inside on_close: the lost connection is not
      * replaced */
     CHECK_EQ(nw_clt_start(clt), 0);
     ut_run_for(0.05);
     CHECK_EQ(connect_ok, 3);
     stay_closed = true;
-    reset_peer(lfd);        /* the connection that was closed by nw_clt_close above */
+    reset_peer(lfd);        /* the connection that was closed by nw_clt_stop above */
     reset_peer(lfd);        /* the current one */
     ut_run_for(0.5);
     CHECK_EQ(close_count, 3);

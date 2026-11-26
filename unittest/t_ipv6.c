@@ -1,5 +1,5 @@
 /*
- * Regression (fixed): nw_sock_cfg_parse() could not parse any IPv6 address,
+ * Regression (fixed): nw_sock_addr_parse() could not parse any IPv6 address,
  * it split host and port at the FIRST ':'. Both the bracket form and the
  * bare form (port after the last colon) are accepted now. An IPv6 echo
  * round trip is part of t_echo.c.
@@ -10,7 +10,7 @@ static void expect(const char *cfg, const char *ip, int port)
 {
     nw_addr addr;
     int type;
-    CHECK_EQ(nw_sock_cfg_parse(cfg, &addr, &type), 0);
+    CHECK_EQ(nw_sock_addr_parse(cfg, &addr, &type), 0);
     CHECK_EQ(addr.family, AF_INET6);
     CHECK_EQ(ntohs(addr.in6.sin6_port), port);
     CHECK(strcmp(nw_sock_ip(&addr), ip) == 0);

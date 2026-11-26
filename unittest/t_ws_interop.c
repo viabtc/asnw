@@ -30,11 +30,11 @@ static void run_server(int port)
     char tcp_cfg[64];
     snprintf(tcp_cfg, sizeof(tcp_cfg), "tcp@127.0.0.1:%d", port);
     nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse(tcp_cfg, &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(tcp_cfg, &bind.addr, &bind.sock_type), 0);
     nw_ws_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.max_message_size = 1024 * 1024;
     cfg.protocol = "echo";
     nw_ws_svr_type type;

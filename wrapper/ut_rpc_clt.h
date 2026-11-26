@@ -23,10 +23,10 @@
 typedef struct rpc_clt_cfg {
     /* must: a name for the peer, for your logs. copied */
     char *name;
-    /* number of entries in addr_arr, at least 1 */
+    /* number of entries in addrs, at least 1 */
     uint32_t addr_count;
     /* the server addresses, all of the same sock_type. copied */
-    nw_addr *addr_arr;
+    nw_addr *addrs;
     /* SOCK_STREAM, SOCK_DGRAM or SOCK_SEQPACKET */
     int sock_type;
     /* see nw_clt_cfg */
@@ -54,7 +54,7 @@ typedef struct rpc_clt {
     nw_clt *raw_clt;
     uint32_t addr_count;
     uint32_t curr_index;
-    nw_addr *addr_arr;
+    nw_addr *addrs;
     nw_timer timer;
     double last_heartbeat;
     void (*on_recv_pkg)(nw_ses *ses, rpc_pkg *pkg);
@@ -67,7 +67,7 @@ rpc_clt *rpc_clt_create(rpc_clt_cfg *cfg, rpc_clt_type *type);
 /* begin to connect and start the heartbeat. return 0 or -1, see nw_clt_start */
 int rpc_clt_start(rpc_clt *clt);
 /* close the connection and stay closed until rpc_clt_start */
-int rpc_clt_close(rpc_clt *clt);
+int rpc_clt_stop(rpc_clt *clt);
 /* send a packet, see rpc_send. check rpc_clt_connected first */
 int rpc_clt_send(rpc_clt *clt, rpc_pkg *pkg);
 /* close and free the client. don't call it from one of its callbacks */

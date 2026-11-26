@@ -31,7 +31,7 @@ static int make_msg(char *buf, size_t size, int seq, int pad)
     return n;
 }
 
-static void svr_on_new_connection(nw_ses *ses)
+static void svr_on_open(nw_ses *ses)
 {
     cur->svr_new++;
 }
@@ -95,7 +95,7 @@ static void run_case(const char *name, const char *cfg_str, int total)
     nw_svr_type st;
     memset(&st, 0, sizeof(st));
     st.decode_pkg = ut_line_decode;
-    st.on_new_connection = svr_on_new_connection;
+    st.on_open = svr_on_open;
     st.on_recv_pkg = svr_on_recv_pkg;
     st.on_error_msg = on_error_msg;
     nw_svr *svr = ut_svr(strncmp(cfg_str, "tcp6@", 5) == 0 ? "tcp@[::1]:0" : cfg_str, &st, MAX_PKG, NULL);
@@ -136,20 +136,20 @@ static void run_case(const char *name, const char *cfg_str, int total)
     CHECK_EQ(c.recv, total);
     CHECK_EQ(c.connect_ok, dgram ? 0 : 1);
     CHECK_EQ(c.svr_new, dgram ? 0 : 1);
-    CHECK_EQ(svr->clt_count, dgram ? 0 : 1);
+    CHECK_EQ(svr->ses_count, dgram ? 0 : 1);
     if (stream)
         CHECK_EQ(c.clt->ses.write_buf->count, 0);
 
     /* a unix dgram client binds a private socket file and removes it on close */
-    char local_path[sizeof(c.clt->ses.host_addr->un.sun_path)] = "";
+    char local_path[sizeof(c.clt->ses.local_addr->un.sun_path)] = "";
     if (dgram && c.clt->ses.peer_addr.family == AF_UNIX) {
-        strcpy(local_path, c.clt->ses.host_addr->un.sun_path);
+        strcpy(local_path, c.clt->ses.local_addr->un.sun_path);
         CHECK_EQ(access(local_path, F_OK), 0);
     }
 
     nw_clt_release(c.clt);
     ut_run_for(0.05);
-    CHECK_EQ(svr->clt_count, 0);
+    CHECK_EQ(svr->ses_count, 0);
     nw_svr_release(svr);
     if (local_path[0])
         CHECK_EQ(access(local_path, F_OK), -1);

@@ -1,6 +1,6 @@
 /*
  * Regression (fixed): a connection used to be still "live" while its own
- * on_connection_close ran. A callback that sent on it (the send fails, the
+ * on_close ran. A callback that sent on it (the send fails, the
  * failure closes the connection, which calls the callback ...) or closed
  * another connection whose callback came back for this one recursed
  * without end, or released the session twice.
@@ -24,7 +24,7 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 {
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     uint64_t id = ses->id;
     CHECK(id != 0);                                     /* still readable */
@@ -33,11 +33,11 @@ static void on_connection_close(nw_ses *ses)
     total_closes++;
 
     /* the connection is already out of the server */
-    CHECK(nw_svr_get_clt(svr, id) == NULL);
+    CHECK(nw_svr_get(svr, id) == NULL);
     CHECK_EQ(nw_ses_send(ses, "goodbye\n", 8), -1);
     CHECK_EQ(nw_svr_send(svr, id, "goodbye\n", 8), -1);
-    nw_svr_close_clt(svr, ses);                         /* again: nothing happens */
-    nw_svr_shutdown_clt(svr, ses);
+    nw_svr_close(svr, ses);                         /* again: nothing happens */
+    nw_svr_shutdown(svr, ses);
     nw_svr_iterator iter;
     nw_ses *other;
     uint32_t seen = 0;
@@ -47,7 +47,7 @@ static void on_connection_close(nw_ses *ses)
         CHECK(other->id != 0);
         seen++;
     }
-    CHECK_EQ(seen, svr->clt_count);                     /* which no longer counts this one */
+    CHECK_EQ(seen, svr->ses_count);                     /* which no longer counts this one */
 
     if (tell_others) {
         nw_svr_iter_init(&iter, svr);
@@ -60,7 +60,7 @@ static void on_connection_close(nw_ses *ses)
         other = nw_svr_next(&iter);
         if (other == NULL)
             break;
-        nw_svr_close_clt(svr, other);
+        nw_svr_close(svr, other);
     }
 }
 
@@ -71,29 +71,29 @@ static void on_timeout(nw_ses *ses)
         dead_timeouts++;
         return;
     }
-    nw_svr_close_clt(svr, ses);
+    nw_svr_close(svr, ses);
 }
 
 static nw_svr *start(double idle_timeout)
 {
     static nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.max_pkg_size = 1024;
     cfg.idle_timeout = idle_timeout;
     nw_svr_type type;
     memset(&type, 0, sizeof(type));
     type.decode_pkg = ut_line_decode;
     type.on_recv_pkg = on_recv_pkg;
-    type.on_connection_close = on_connection_close;
+    type.on_close = on_close;
     type.on_timeout = on_timeout;
     nw_svr *s = nw_svr_create(&cfg, &type, NULL);
     CHECK(s != NULL);
     CHECK_EQ(nw_svr_start(s), 0);
-    CHECK_EQ(nw_sock_host_addr(s->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(s->binds[0].sockfd, &addr), 0);
     return s;
 }
 
@@ -108,7 +108,7 @@ static void connect_many(int *fds, int count)
         CHECK_EQ(connect(fds[i], NW_SOCKADDR(&addr), sizeof(addr.in)), 0);
     }
     ut_run_for(0.05);
-    CHECK_EQ(svr->clt_count, count);
+    CHECK_EQ(svr->ses_count, count);
 }
 
 static void close_all(int *fds, int count)
@@ -124,8 +124,8 @@ static void check_each_closed_once(int count)
     CHECK_EQ(total_closes, count);
     for (int i = 0; i < count; ++i)
         CHECK_EQ(close_calls[i], 1);
-    CHECK_EQ(svr->clt_count, 0);
-    CHECK_EQ(nw_dict_count(svr->clt_dict), 0);
+    CHECK_EQ(svr->ses_count, 0);
+    CHECK_EQ(nw_dict_count(svr->ses_dict), 0);
 }
 
 int main(void)
@@ -153,7 +153,7 @@ int main(void)
 
     /* the same started from the server side */
     connect_many(fds, N);
-    nw_svr_close_clt(svr, nw_svr_get_clt(svr, first_id + 3));
+    nw_svr_close(svr, nw_svr_get(svr, first_id + 3));
     check_each_closed_once(N);
     close_all(fds, N);
 
@@ -168,7 +168,7 @@ int main(void)
     }
     ut_run_for(0.2);
     CHECK_EQ(total_closes, N / 2);
-    CHECK_EQ(svr->clt_count, N / 2);
+    CHECK_EQ(svr->ses_count, N / 2);
     for (int i = 1; i < N; i += 2)
         close(fds[i]);
     ut_run_for(0.2);
@@ -185,9 +185,9 @@ int main(void)
     nw_svr_iter_init(&iter, svr);
     while ((ses = nw_svr_next(&iter)) != NULL) {
         CHECK(ses->id != 0);
-        CHECK(nw_svr_get_clt(svr, ses->id) == ses);
+        CHECK(nw_svr_get(svr, ses->id) == ses);
         visited++;
-        nw_svr_close_clt(svr, ses);
+        nw_svr_close(svr, ses);
     }
     CHECK(visited >= 1 && visited < N);
     check_each_closed_once(N);

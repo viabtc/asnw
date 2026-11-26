@@ -147,14 +147,14 @@ static void raw_on_recv_pkg(nw_ses *ses, void *data, size_t size)
         }
         CHECK_EQ(at, chunked_size);
         CHECK_EQ(nw_ses_send(ses, "0\r\n\r\n", 5), 0);
-        nw_svr_shutdown_clt(ses->svr, ses);
+        nw_svr_shutdown(ses->svr, ses);
         return;
     }
     for (size_t i = 0; i < sizeof(canned) / sizeof(canned[0]); ++i) {
         if (strcmp(path, canned[i].path) == 0) {
             if (canned[i].response[0])
                 CHECK_EQ(nw_ses_send(ses, canned[i].response, strlen(canned[i].response)), 0);
-            nw_svr_shutdown_clt(ses->svr, ses);
+            nw_svr_shutdown(ses->svr, ses);
             return;
         }
     }
@@ -360,11 +360,11 @@ int main(void)
 
     /* the servers */
     static nw_svr_bind bind_http;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind_http.addr, &bind_http.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind_http.addr, &bind_http.sock_type), 0);
     nw_http_svr_cfg hc;
     memset(&hc, 0, sizeof(hc));
     hc.bind_count = 1;
-    hc.bind_arr = &bind_http;
+    hc.binds = &bind_http;
     hc.max_request_size = 2 * 1024 * 1024;
     nw_http_svr_type ht;
     memset(&ht, 0, sizeof(ht));

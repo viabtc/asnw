@@ -154,15 +154,15 @@ int main(void)
     nw_svr_bind binds[2];
     char unix_cfg[256];
     int type;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &binds[0].addr, &binds[0].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &binds[0].addr, &binds[0].sock_type), 0);
     ut_unix_cfg(unix_cfg, sizeof(unix_cfg), "stream", "http.sock");
-    CHECK_EQ(nw_sock_cfg_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
-    CHECK_EQ(nw_sock_cfg_parse(unix_cfg, &unix_addr, &type), 0);
+    CHECK_EQ(nw_sock_addr_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(unix_cfg, &unix_addr, &type), 0);
 
     nw_http_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 2;
-    cfg.bind_arr = binds;
+    cfg.binds = binds;
     cfg.max_request_size = 4096;
 
     nw_http_svr_type st;
@@ -171,16 +171,16 @@ int main(void)
     st.on_request = on_request;
     st.on_error_msg = on_error_msg;
     nw_svr_bind udp;
-    CHECK_EQ(nw_sock_cfg_parse("udp@127.0.0.1:0", &udp.addr, &udp.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("udp@127.0.0.1:0", &udp.addr, &udp.sock_type), 0);
     nw_http_svr_cfg bad_cfg = cfg;
     bad_cfg.bind_count = 1;
-    bad_cfg.bind_arr = &udp;
+    bad_cfg.binds = &udp;
     CHECK(nw_http_svr_create(&bad_cfg, &st, NULL) == NULL);     /* stream only */
 
     svr = nw_http_svr_create(&cfg, &st, NULL);
     CHECK(svr != NULL);
     CHECK_EQ(nw_http_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &tcp_addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->raw_svr->binds[0].sockfd, &tcp_addr), 0);
 
     /* a GET, and a second one on the same connection */
     c = client_new(&tcp_addr);
@@ -202,7 +202,7 @@ int main(void)
     client_puts(c, "\r\n\r\nGET /hello HTTP/1.1\r\nHost: test\r\n\r\n");
     CHECK(client_read(c, &rsp, false, 3.0));
     CHECK_EQ(rsp.status, 200);
-    CHECK_EQ(svr->raw_svr->clt_count, 1);
+    CHECK_EQ(svr->raw_svr->ses_count, 1);
     CHECK_EQ(request_count, 3);
     client_free(c);
 
@@ -423,14 +423,14 @@ int main(void)
     }
     client_free(c);
     ut_run_for(0.05);
-    CHECK_EQ(svr->raw_svr->clt_count, 0);
+    CHECK_EQ(svr->raw_svr->ses_count, 0);
 
     /* release with a connection waiting for an answer and an idle one */
     struct client *waiting = client_new(&tcp_addr);
     struct client *idle = client_new(&tcp_addr);
     client_puts(waiting, "GET /never HTTP/1.1\r\nHost: test\r\n\r\n");
     client_pump(waiting, 0.05);
-    CHECK_EQ(svr->raw_svr->clt_count, 2);
+    CHECK_EQ(svr->raw_svr->ses_count, 2);
     nw_http_svr_release(svr);
     CHECK(client_closed(waiting, 1.0));
     CHECK(client_closed(idle, 1.0));
@@ -446,7 +446,7 @@ int main(void)
     svr = nw_http_svr_create(&cfg, &st, NULL);
     CHECK(svr != NULL);
     CHECK_EQ(nw_http_svr_start(svr), 0);
-    CHECK_EQ(nw_sock_host_addr(svr->raw_svr->bind_list[0].sockfd, &tcp_addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->raw_svr->binds[0].sockfd, &tcp_addr), 0);
 
     struct client *slow = client_new(&tcp_addr);        /* never finishes its request */
     idle = client_new(&tcp_addr);                       /* connects and says nothing */
@@ -470,10 +470,10 @@ int main(void)
     client_free(idle);
     client_free(done);
     ut_run_for(0.05);
-    CHECK_EQ(svr->raw_svr->clt_count, 1);
+    CHECK_EQ(svr->raw_svr->ses_count, 1);
     client_free(waiting);
     ut_run_for(0.05);
-    CHECK_EQ(svr->raw_svr->clt_count, 0);
+    CHECK_EQ(svr->raw_svr->ses_count, 0);
     nw_http_svr_release(svr);
 
     free(big_body);

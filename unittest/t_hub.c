@@ -52,20 +52,20 @@ static void on_privdata_free(void *svr, void *privdata)
     free(privdata);
 }
 
-static void on_new_connection(nw_ses *ses)
+static void on_open(nw_ses *ses)
 {
     check_thread(ses);
     if (ses->privdata == NULL)
         ADD(wrong_thread);
     ADD(per_thread[nw_hub_index(hub)]);
-    if (ses->host_addr->family == AF_UNIX)
+    if (ses->local_addr->family == AF_UNIX)
         ADD(unix_conns);
     pthread_mutex_lock(&lock);
     ids[id_count++] = ses->id;
     pthread_mutex_unlock(&lock);
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     check_thread(ses);
     ADD(closes);
@@ -78,7 +78,7 @@ static void on_timeout(nw_ses *ses)
 {
     check_thread(ses);
     ADD(timeouts);
-    nw_svr_close_clt(ses->svr, ses);
+    nw_svr_close(ses->svr, ses);
 }
 
 static void svr_on_recv_pkg(nw_ses *ses, void *data, size_t size)
@@ -112,7 +112,7 @@ static void svr_on_recv_pkg(nw_ses *ses, void *data, size_t size)
     } else if (strcmp(text, "closeme") == 0) {
         uint64_t id = ses->id;
         CHECK_EQ(nw_hub_close(hub, id), 0);
-        CHECK(nw_svr_get_clt(nw_hub_svr(hub), id) == NULL);
+        CHECK(nw_svr_get(nw_hub_svr(hub), id) == NULL);
         CHECK_EQ(nw_hub_close(hub, id), 0);
         CHECK_EQ(nw_hub_send(hub, id, "x\n", 2), -1);
     } else if (strcmp(text, "sleep") == 0) {
@@ -165,7 +165,7 @@ static int on_thread_start(nw_hub *h, uint32_t index)
 static void on_thread_stop(nw_hub *h, uint32_t index)
 {
     ADD(thread_stops);
-    if (nw_hub_index(h) != (int)index || nw_hub_svr(h)->clt_count != 0)
+    if (nw_hub_index(h) != (int)index || nw_hub_svr(h)->ses_count != 0)
         ADD(wrong_thread);
 }
 
@@ -191,7 +191,7 @@ static int clt_on_close(nw_ses *ses)
     struct client *c = ses->privdata;
     c->closed++;
     c->last_before_close = c->last == 1;
-    nw_clt_close(c->clt);       /* stay closed */
+    nw_clt_stop(c->clt);       /* stay closed */
     return 0;
 }
 
@@ -229,7 +229,7 @@ static nw_hub *create(uint32_t threads, nw_svr_bind *binds, uint32_t bind_count,
     nw_hub_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.svr.bind_count = bind_count;
-    cfg.svr.bind_arr = binds;
+    cfg.svr.binds = binds;
     cfg.svr.max_pkg_size = 4096;
     cfg.svr.idle_timeout = idle_timeout;
     cfg.thread_count = threads;
@@ -238,8 +238,8 @@ static nw_hub *create(uint32_t threads, nw_svr_bind *binds, uint32_t bind_count,
     memset(&type, 0, sizeof(type));
     type.svr.decode_pkg = ut_line_decode;
     type.svr.on_recv_pkg = svr_on_recv_pkg;
-    type.svr.on_new_connection = on_new_connection;
-    type.svr.on_connection_close = on_connection_close;
+    type.svr.on_open = on_open;
+    type.svr.on_close = on_close;
     type.svr.on_privdata_alloc = on_privdata_alloc;
     type.svr.on_privdata_free = on_privdata_free;
     if (idle_timeout > 0)
@@ -288,14 +288,14 @@ int main(void)
     nw_svr_bind binds[2];
     char unix_cfg[128], tcp_cfg[64];
     ut_unix_cfg(unix_cfg, sizeof(unix_cfg), "stream", "hub.sock");
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &binds[0].addr, &binds[0].sock_type), 0);
-    CHECK_EQ(nw_sock_cfg_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &binds[0].addr, &binds[0].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
 
     /* what can't be */
     CHECK(create(0, binds, 2, 0, 0) == NULL);
     CHECK(create(NW_HUB_MAX_THREADS + 1, binds, 2, 0, 0) == NULL);
     nw_svr_bind dgram;
-    CHECK_EQ(nw_sock_cfg_parse("udp@127.0.0.1:0", &dgram.addr, &dgram.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("udp@127.0.0.1:0", &dgram.addr, &dgram.sock_type), 0);
     CHECK(create(2, &dgram, 1, 0, 0) == NULL);
     CHECK_EQ(GET(thread_starts), 0);
 
@@ -314,7 +314,7 @@ int main(void)
     CHECK_EQ(nw_hub_start(hub), 0);
     CHECK_EQ(nw_hub_index(hub), -1);        /* this is not a worker */
     CHECK(nw_hub_svr(hub) == NULL);
-    CHECK(nw_hub_of(&hub->acceptor->bind_list[1]) == hub);
+    CHECK(nw_hub_of(&hub->acceptor->binds[1]) == hub);
     CHECK(hub->acceptor->privdata == &hub);
 
     /* a function of ours on a worker, and on all of them */
@@ -444,7 +444,7 @@ int main(void)
     CHECK(hub != NULL);
     CHECK_EQ(nw_hub_start(hub), 0);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(hub->acceptor->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(hub->acceptor->binds[0].sockfd, &addr), 0);
     int fds[4];
     for (int i = 0; i < 4; ++i) {
         fds[i] = socket(AF_INET, SOCK_STREAM, 0);

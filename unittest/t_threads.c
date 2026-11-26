@@ -25,7 +25,7 @@ struct worker {
     rpc_clt *rclt;
     int svr_recv, clt_recv, ticks, state_timeouts, jobs_done, rpc_replies;
     int svr_wrong_thread;
-    char addr_text[NW_HUMAN_ADDR_SIZE];
+    char addr_text[NW_SOCK_HUMAN_ADDR_SIZE];
 };
 
 static __thread struct worker *self;
@@ -151,11 +151,11 @@ static void *run(void *arg)
 
     /* a server of this thread and its client */
     nw_svr_bind bind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
     nw_svr_cfg scfg;
     memset(&scfg, 0, sizeof(scfg));
     scfg.bind_count = 1;
-    scfg.bind_arr = &bind;
+    scfg.binds = &bind;
     scfg.max_pkg_size = 1024;
     nw_svr_type st;
     memset(&st, 0, sizeof(st));
@@ -168,13 +168,13 @@ static void *run(void *arg)
     CHECK(w->loop != NULL);
 
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(w->svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(w->svr->binds[0].sockfd, &addr), 0);
     snprintf(cfg, sizeof(cfg), "tcp@%s", nw_sock_human_addr(&addr));
     snprintf(w->addr_text, sizeof(w->addr_text), "%s", nw_sock_human_addr(&addr));
 
     nw_clt_cfg ccfg;
     memset(&ccfg, 0, sizeof(ccfg));
-    CHECK_EQ(nw_sock_cfg_parse(cfg, &ccfg.addr, &ccfg.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(cfg, &ccfg.addr, &ccfg.sock_type), 0);
     ccfg.max_pkg_size = 1024;
     nw_clt_type ct;
     memset(&ct, 0, sizeof(ct));
@@ -189,7 +189,7 @@ static void *run(void *arg)
      * another thread makes at the same moment */
     nw_clt_cfg dcfg;
     memset(&dcfg, 0, sizeof(dcfg));
-    CHECK_EQ(nw_sock_cfg_parse("dgram@/tmp/asnw-ut-nobody.sock", &dcfg.addr, &dcfg.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("dgram@/tmp/asnw-ut-nobody.sock", &dcfg.addr, &dcfg.sock_type), 0);
     dcfg.max_pkg_size = 1024;
     nw_clt *dclt = nw_clt_create(&dcfg, &ct, w);
     CHECK(dclt != NULL);
@@ -219,9 +219,9 @@ static void *run(void *arg)
     nw_svr_cfg rscfg;
     memset(&rscfg, 0, sizeof(rscfg));
     nw_svr_bind rbind;
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &rbind.addr, &rbind.sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &rbind.addr, &rbind.sock_type), 0);
     rscfg.bind_count = 1;
-    rscfg.bind_arr = &rbind;
+    rscfg.binds = &rbind;
     rscfg.max_pkg_size = RPC_MAX_PKG_SIZE;
     rpc_svr_type rst;
     memset(&rst, 0, sizeof(rst));
@@ -229,7 +229,7 @@ static void *run(void *arg)
     w->rsvr = rpc_svr_create(&rscfg, &rst);
     CHECK(w->rsvr != NULL);
     CHECK_EQ(rpc_svr_start(w->rsvr), 0);
-    CHECK_EQ(nw_sock_host_addr(w->rsvr->raw_svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(w->rsvr->raw_svr->binds[0].sockfd, &addr), 0);
 
     rpc_clt_cfg rccfg;
     memset(&rccfg, 0, sizeof(rccfg));
@@ -237,7 +237,7 @@ static void *run(void *arg)
     snprintf(rname, sizeof(rname), "rpc%d", w->index);
     rccfg.name = rname;
     rccfg.addr_count = 1;
-    rccfg.addr_arr = &addr;
+    rccfg.addrs = &addr;
     rccfg.sock_type = SOCK_STREAM;
     rpc_clt_type rct;
     memset(&rct, 0, sizeof(rct));

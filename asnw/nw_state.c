@@ -48,7 +48,7 @@ static void state_release(nw_state *state, nw_state_entry *entry)
 static void on_timeout(struct ev_loop *loop, ev_timer *ev, int events)
 {
     nw_state_entry *entry = (nw_state_entry *)ev;
-    nw_state *state = entry->context;
+    nw_state *state = entry->state;
     /* take it out of the dict first: whatever the callback does with this
      * id (del, mod, add it again) can no longer touch the entry being
      * timed out */
@@ -91,7 +91,7 @@ nw_state_entry *nw_state_add(nw_state *state, double timeout, uint32_t id)
     }
     ev_timer_init(&entry->ev, on_timeout, timeout, 0);
     ev_timer_start(state->loop, &entry->ev);
-    entry->context = state;
+    entry->state = state;
     entry->data = ((void *)entry + sizeof(nw_state_entry));
     memset(entry->data, 0, state->data_size);
 
@@ -103,7 +103,7 @@ nw_state_entry *nw_state_get(nw_state *state, uint32_t id)
     return nw_dict_get(state->dict, id);
 }
 
-int nw_state_mod(nw_state *state, uint32_t id, double timeout)
+int nw_state_set_timeout(nw_state *state, uint32_t id, double timeout)
 {
     nw_state_entry *entry = nw_state_get(state, id);
     if (entry == NULL)

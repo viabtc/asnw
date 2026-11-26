@@ -182,14 +182,14 @@ static void worker_handle(struct nw_hub_worker *worker, struct event *event)
         nw_svr_send(svr, event->id, event->data, event->size);
         break;
     case EVENT_CLOSE:
-        ses = nw_svr_get_clt(svr, event->id);
+        ses = nw_svr_get(svr, event->id);
         if (ses)
-            nw_svr_close_clt(svr, ses);
+            nw_svr_close(svr, ses);
         break;
     case EVENT_SHUTDOWN:
-        ses = nw_svr_get_clt(svr, event->id);
+        ses = nw_svr_get(svr, event->id);
         if (ses)
-            nw_svr_shutdown_clt(svr, ses);
+            nw_svr_shutdown(svr, ses);
         break;
     case EVENT_BROADCAST:
         broadcast_here(svr, event->shared->data, event->shared->size);
@@ -301,7 +301,7 @@ static void *worker_main(void *arg)
     nw_ses *ses;
     nw_svr_iter_init(&iter, worker->svr);
     while ((ses = nw_svr_next(&iter)) != NULL) {
-        nw_svr_close_clt(worker->svr, ses);
+        nw_svr_close(worker->svr, ses);
     }
     if (hub->type.on_thread_stop) {
         hub->type.on_thread_stop(hub, worker->index);
@@ -321,7 +321,7 @@ static int on_accept(nw_ses *ses, int sockfd, nw_addr *peer_addr)
     if (event == NULL)
         return -1;
     event->fd = sockfd;
-    event->bind_index = ses - hub->acceptor->bind_list;
+    event->bind_index = ses - hub->acceptor->binds;
     memcpy(event->data, peer_addr, sizeof(nw_addr));
 
     struct nw_hub_worker *worker = &hub->workers[hub->turn++ % hub->thread_count];
@@ -373,7 +373,7 @@ static void hub_free(nw_hub *hub)
     }
     if (hub->acceptor)
         nw_svr_release(hub->acceptor);
-    free(hub->svr_cfg.bind_arr);
+    free(hub->svr_cfg.binds);
     pthread_cond_destroy(&hub->cond);
     pthread_mutex_destroy(&hub->lock);
     free(hub);
@@ -388,7 +388,7 @@ nw_hub *nw_hub_create(nw_hub_cfg *cfg, nw_hub_type *type, void *privdata)
     if (type->on_svr_create && !type->on_svr_release)
         return NULL;
     for (uint32_t i = 0; i < cfg->svr.bind_count; ++i) {
-        if (cfg->svr.bind_arr[i].sock_type == SOCK_DGRAM)
+        if (cfg->svr.binds[i].sock_type == SOCK_DGRAM)
             return NULL;
     }
 
@@ -401,17 +401,17 @@ nw_hub *nw_hub_create(nw_hub_cfg *cfg, nw_hub_type *type, void *privdata)
     hub->type = *type;
     hub->type.svr.on_accept = NULL;
     hub->svr_cfg = cfg->svr;
-    hub->svr_cfg.bind_arr = NULL;
+    hub->svr_cfg.binds = NULL;
     hub->queue_limit = cfg->queue_limit;
     hub->privdata = privdata;
 
     /* the workers read the binds after this function has returned */
-    hub->svr_cfg.bind_arr = malloc(sizeof(nw_svr_bind) * cfg->svr.bind_count);
-    if (hub->svr_cfg.bind_arr == NULL) {
+    hub->svr_cfg.binds = malloc(sizeof(nw_svr_bind) * cfg->svr.bind_count);
+    if (hub->svr_cfg.binds == NULL) {
         hub_free(hub);
         return NULL;
     }
-    memcpy(hub->svr_cfg.bind_arr, cfg->svr.bind_arr, sizeof(nw_svr_bind) * cfg->svr.bind_count);
+    memcpy(hub->svr_cfg.binds, cfg->svr.binds, sizeof(nw_svr_bind) * cfg->svr.bind_count);
 
     hub->workers = calloc(cfg->thread_count, sizeof(struct nw_hub_worker));
     if (hub->workers == NULL) {
@@ -539,13 +539,13 @@ static int close_by_id(nw_hub *hub, uint64_t id, int type)
     if (worker == NULL)
         return -1;
     if (local) {
-        nw_ses *ses = nw_svr_get_clt(worker->svr, id);
+        nw_ses *ses = nw_svr_get(worker->svr, id);
         if (ses == NULL)
             return 0;
         if (type == EVENT_CLOSE) {
-            nw_svr_close_clt(worker->svr, ses);
+            nw_svr_close(worker->svr, ses);
         } else {
-            nw_svr_shutdown_clt(worker->svr, ses);
+            nw_svr_shutdown(worker->svr, ses);
         }
         return 0;
     }

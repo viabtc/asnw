@@ -31,11 +31,11 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
     svr->on_recv_pkg(ses, &pkg);
 }
 
-static void on_new_connection(nw_ses *ses)
+static void on_open(nw_ses *ses)
 {
     rpc_svr *svr = ((nw_svr *)ses->svr)->privdata;
-    if (svr->on_new_connection)
-        svr->on_new_connection(ses);
+    if (svr->on_open)
+        svr->on_open(ses);
 }
 
 static void on_error_msg(nw_ses *ses, const char *msg)
@@ -53,8 +53,8 @@ rpc_svr *rpc_svr_create(nw_svr_cfg *cfg, rpc_svr_type *type)
     nw_svr_type raw_type;
     memset(&raw_type, 0, sizeof(raw_type));
     raw_type.decode_pkg = rpc_decode;
-    raw_type.on_connection_close = type->on_connection_close;
-    raw_type.on_new_connection = on_new_connection;
+    raw_type.on_close = type->on_close;
+    raw_type.on_open = on_open;
     raw_type.on_error_msg = on_error_msg;
     raw_type.on_recv_pkg = on_recv_pkg;
 
@@ -69,7 +69,7 @@ rpc_svr *rpc_svr_create(nw_svr_cfg *cfg, rpc_svr_type *type)
     }
 
     svr->on_recv_pkg = type->on_recv_pkg;
-    svr->on_new_connection = type->on_new_connection;
+    svr->on_open = type->on_open;
 
     return svr;
 }
@@ -90,7 +90,7 @@ void rpc_svr_release(rpc_svr *svr)
     free(svr);
 }
 
-void rpc_svr_close_clt(rpc_svr *svr, nw_ses *ses)
+void rpc_svr_close(rpc_svr *svr, nw_ses *ses)
 {
-    nw_svr_close_clt(svr->raw_svr, ses);
+    nw_svr_close(svr->raw_svr, ses);
 }

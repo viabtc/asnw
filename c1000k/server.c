@@ -36,7 +36,7 @@ void on_error_msg(nw_ses *ses, const char *msg)
 void on_timer(nw_timer *timer, void *privdata)
 {
     nw_svr *svr = (nw_svr *)privdata;
-    printf("clt count: %u\n", svr->clt_count);
+    printf("clt count: %u\n", svr->ses_count);
 }
 
 int set_file_limit(size_t limit)
@@ -64,13 +64,13 @@ int main(int argc, char *argv[])
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 100;
-    cfg.bind_arr = malloc(sizeof(nw_svr_bind) * cfg.bind_count);
+    cfg.binds = malloc(sizeof(nw_svr_bind) * cfg.bind_count);
     cfg.max_pkg_size = 1024;
 
     for (uint32_t i = 0; i < cfg.bind_count; ++i) {
         char bind[1024];
         snprintf(bind, sizeof(bind), "tcp@127.0.0.1:%d", 5000 + i);
-        nw_sock_cfg_parse(bind, &cfg.bind_arr[i].addr, &cfg.bind_arr[i].sock_type);
+        nw_sock_addr_parse(bind, &cfg.binds[i].addr, &cfg.binds[i].sock_type);
     }
 
     nw_svr_type type;

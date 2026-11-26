@@ -33,7 +33,7 @@ typedef struct nw_state_entry {
     /* the id of the entry, unique within its nw_state, never 0 */
     uint32_t id;
     /* the nw_state the entry belongs to */
-    void *context;
+    void *state;
     /* your data: data_size bytes, zeroed by nw_state_add. valid until the
      * entry is deleted or timed out */
     void *data;
@@ -88,7 +88,7 @@ nw_state_entry *nw_state_get(nw_state *state, uint32_t id);
 
 /* restart the timeout of an entry: it now times out `timeout` seconds from
  * this call. return 0, or -1 if there is no such entry */
-int nw_state_mod(nw_state *state, uint32_t id, double timeout);
+int nw_state_set_timeout(nw_state *state, uint32_t id, double timeout);
 
 /* delete an entry: its timeout is cancelled, on_release is called and the
  * entry is freed. return 0, or -1 if there is no such entry */

@@ -637,16 +637,16 @@ static int http_send(nw_http_svr *svr, nw_ses *ses, nw_http_conn *conn, nw_http_
     }
     /* a failed send closed the session and its memory may be reused: go by
      * the id to find out, not by the pointer */
-    if (ret < 0 || nw_svr_get_clt(svr->raw_svr, id) != ses)
+    if (ret < 0 || nw_svr_get(svr->raw_svr, id) != ses)
         return -1;
 
     if (keep_alive) {
         /* idle again: the keep-alive timeout applies from here */
-        nw_svr_set_clt_idle_timeout(svr->raw_svr, ses, svr->keep_alive_timeout);
+        nw_svr_set_idle_timeout(svr->raw_svr, ses, svr->keep_alive_timeout);
     } else {
         /* an orderly close, so that the response is not lost to a reset if
          * the client is still sending */
-        nw_svr_shutdown_clt(svr->raw_svr, ses);
+        nw_svr_shutdown(svr->raw_svr, ses);
     }
 
     return 0;
@@ -707,7 +707,7 @@ struct reply_request {
 static void on_reply_request(nw_hub *hub, void *data, size_t size)
 {
     struct reply_request *request = data;
-    nw_ses *ses = nw_svr_get_clt(nw_hub_svr(hub), request->id);
+    nw_ses *ses = nw_svr_get(nw_hub_svr(hub), request->id);
     if (ses == NULL)
         return;
 
@@ -783,7 +783,7 @@ int nw_http_reply_id(nw_http_svr *svr, uint64_t id, nw_http_response *rsp)
             return post_reply(svr, id, rsp);
         svr = nw_hub_svr(svr->hub)->privdata;
     }
-    nw_ses *ses = nw_svr_get_clt(svr->raw_svr, id);
+    nw_ses *ses = nw_svr_get(svr->raw_svr, id);
     if (ses == NULL)
         return -1;
     return nw_http_reply(ses, rsp);
@@ -810,7 +810,7 @@ static void on_continue_timer(nw_timer *timer, void *privdata)
     static const char msg[] = "HTTP/1.1 100 Continue\r\n\r\n";
     nw_http_svr *svr = privdata;
     for (uint32_t i = 0; i < svr->continue_count; ++i) {
-        nw_ses *ses = nw_svr_get_clt(svr->raw_svr, svr->continue_ids[i]);
+        nw_ses *ses = nw_svr_get(svr->raw_svr, svr->continue_ids[i]);
         if (ses == NULL)
             continue;
         nw_http_conn *conn = ses->privdata;
@@ -858,7 +858,7 @@ static int decode_pkg(nw_ses *ses, void *data, size_t max)
             /* the first bytes of a request: all of it has to be here in
              * time, however slowly the rest trickles in */
             conn->receiving = true;
-            nw_svr_set_clt_deadline(svr->raw_svr, ses, svr->request_timeout);
+            nw_svr_set_deadline(svr->raw_svr, ses, svr->request_timeout);
         }
     }
 
@@ -895,7 +895,7 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
     memset(&conn->frame, 0, sizeof(conn->frame));
     conn->continue_sent = false;
     conn->receiving = false;
-    nw_svr_set_clt_deadline(svr->raw_svr, ses, 0);
+    nw_svr_set_deadline(svr->raw_svr, ses, 0);
 
     if (conn->pending) {
         /* pipelining is not supported: this request is dropped and the
@@ -918,25 +918,25 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 
     /* the handler may take as long as it needs: no idle timeout while a
      * request is waiting for its answer */
-    nw_svr_set_clt_idle_timeout(svr->raw_svr, ses, 0);
+    nw_svr_set_idle_timeout(svr->raw_svr, ses, 0);
     conn->pending = true;
     conn->keep_alive = req.keep_alive;
     conn->head_request = strcmp(req.method, "HEAD") == 0;
     svr->type.on_request(ses, &req);
 }
 
-static void on_new_connection(nw_ses *ses)
+static void on_open(nw_ses *ses)
 {
     nw_http_svr *svr = nw_http_svr_of(ses);
-    if (svr->type.on_new_connection)
-        svr->type.on_new_connection(ses);
+    if (svr->type.on_open)
+        svr->type.on_open(ses);
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     nw_http_svr *svr = nw_http_svr_of(ses);
-    if (svr->type.on_connection_close)
-        svr->type.on_connection_close(ses);
+    if (svr->type.on_close)
+        svr->type.on_close(ses);
 }
 
 static void on_error_msg(nw_ses *ses, const char *msg)
@@ -975,7 +975,7 @@ static void on_timeout(nw_ses *ses)
         http_refuse(svr, ses, conn, 408);
     } else {
         /* a keep-alive connection nobody uses any more */
-        nw_svr_close_clt(svr->raw_svr, ses);
+        nw_svr_close(svr->raw_svr, ses);
     }
 }
 
@@ -1021,7 +1021,7 @@ static nw_http_svr *http_svr_new(nw_http_svr_cfg *cfg, nw_http_svr_type *type, v
     nw_svr_cfg raw_cfg;
     memset(&raw_cfg, 0, sizeof(raw_cfg));
     raw_cfg.bind_count = cfg->bind_count;
-    raw_cfg.bind_arr = cfg->bind_arr;
+    raw_cfg.binds = cfg->binds;
     raw_cfg.max_pkg_size = svr->max_request_size;
     raw_cfg.buf_limit = cfg->buf_limit;
     raw_cfg.read_mem = cfg->read_mem;
@@ -1032,8 +1032,8 @@ static nw_http_svr *http_svr_new(nw_http_svr_cfg *cfg, nw_http_svr_type *type, v
     memset(&raw_type, 0, sizeof(raw_type));
     raw_type.decode_pkg = decode_pkg;
     raw_type.on_recv_pkg = on_recv_pkg;
-    raw_type.on_new_connection = on_new_connection;
-    raw_type.on_connection_close = on_connection_close;
+    raw_type.on_open = on_open;
+    raw_type.on_close = on_close;
     raw_type.on_error_msg = on_error_msg;
     raw_type.on_timeout = on_timeout;
     raw_type.on_drain = type->on_drain;
@@ -1095,7 +1095,7 @@ nw_http_svr *nw_http_svr_create(nw_http_svr_cfg *cfg, nw_http_svr_type *type, vo
     if (type->on_request == NULL)
         return NULL;
     for (uint32_t i = 0; i < cfg->bind_count; ++i) {
-        if (cfg->bind_arr[i].sock_type != SOCK_STREAM)
+        if (cfg->binds[i].sock_type != SOCK_STREAM)
             return NULL;
     }
     if (cfg->thread_count == 0)

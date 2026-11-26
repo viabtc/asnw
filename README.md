@@ -72,14 +72,14 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
 int main(void)
 {
     nw_svr_bind bind[2];
-    if (nw_sock_cfg_parse("tcp@127.0.0.1:1234", &bind[0].addr, &bind[0].sock_type) < 0 ||
-        nw_sock_cfg_parse("stream@/tmp/echo.sock", &bind[1].addr, &bind[1].sock_type) < 0)
+    if (nw_sock_addr_parse("tcp@127.0.0.1:1234", &bind[0].addr, &bind[0].sock_type) < 0 ||
+        nw_sock_addr_parse("stream@/tmp/echo.sock", &bind[1].addr, &bind[1].sock_type) < 0)
         return 1;
 
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 2;
-    cfg.bind_arr = bind;
+    cfg.binds = bind;
     cfg.max_pkg_size = 10240;
 
     nw_svr_type type;
@@ -96,7 +96,7 @@ int main(void)
 }
 ```
 
-`decode_pkg` and `on_recv_pkg` are required. The optional callbacks are `on_new_connection`, `on_connection_close`, `on_error_msg`, `on_accept`, `on_recv_fd` and `on_privdata_alloc` / `on_privdata_free` for per connection data. `nw_svr.h` documents each one.
+`decode_pkg` and `on_recv_pkg` are required. The optional callbacks are `on_open`, `on_close`, `on_error_msg`, `on_accept`, `on_recv_fd` and `on_privdata_alloc` / `on_privdata_free` for per connection data. `nw_svr.h` documents each one.
 
 A client is built the same way from `nw_clt_cfg` and `nw_clt_type`, then `nw_clt_start`. See `example/ping_clt.c`.
 
@@ -131,13 +131,13 @@ static void on_request(nw_ses *ses, nw_http_request *req)
 int main(void)
 {
     nw_svr_bind bind;
-    if (nw_sock_cfg_parse("tcp@127.0.0.1:8080", &bind.addr, &bind.sock_type) < 0)
+    if (nw_sock_addr_parse("tcp@127.0.0.1:8080", &bind.addr, &bind.sock_type) < 0)
         return 1;
 
     nw_http_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
 
     nw_http_svr_type type;
     memset(&type, 0, sizeof(type));
@@ -190,13 +190,13 @@ static void on_message(nw_ses *ses, bool binary, void *data, size_t size)
 int main(void)
 {
     nw_svr_bind bind;
-    if (nw_sock_cfg_parse("tcp@127.0.0.1:8081", &bind.addr, &bind.sock_type) < 0)
+    if (nw_sock_addr_parse("tcp@127.0.0.1:8081", &bind.addr, &bind.sock_type) < 0)
         return 1;
 
     nw_ws_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 1;
-    cfg.bind_arr = &bind;
+    cfg.binds = &bind;
     cfg.buf_limit = 16;         /* a client that falls this far behind is dropped */
     cfg.ping_interval = 20;
 
@@ -224,7 +224,7 @@ int main(void)
 
 ## Addresses
 
-Addresses are written `protocol@address` and parsed with `nw_sock_cfg_parse`:
+Addresses are written `protocol@address` and parsed with `nw_sock_addr_parse`:
 
 | Example | Transport |
 |---------|-----------|
@@ -235,29 +235,29 @@ Addresses are written `protocol@address` and parsed with `nw_sock_cfg_parse`:
 | `dgram@/tmp/a.sock` | unix datagram |
 | `seqpacket@/tmp/a.sock` | unix seqpacket |
 
-The protocol name is case insensitive. Hosts are numeric addresses: `nw_sock_cfg_parse` does not resolve names. A client can be given a name in place of the ip, with `nw_clt_cfg_parse`: see "A server given by name" below.
+The protocol name is case insensitive. Hosts are numeric addresses: `nw_sock_addr_parse` does not resolve names. A client can be given a name in place of the ip, with `nw_clt_cfg_parse`: see "A server given by name" below.
 
 ## Things to know
 
 **Messages.** On stream connections `decode_pkg` finds message boundaries, and a message can be at most `max_pkg_size` bytes. On datagram and seqpacket sockets every packet is one message; a packet for which `decode_pkg` returns 0 is dropped.
 
-**Session lifetime.** A `nw_ses *` is valid until its connection closes, and the memory is reused for later connections. Across asynchronous work (a job, a state, a timer) keep `ses->id` instead of the pointer, and get the connection back with `nw_svr_get_clt(svr, id)`, which returns NULL if the client is gone; `nw_svr_send(svr, id, ...)` does both steps. Ids are never 0 and never reused.
+**Session lifetime.** A `nw_ses *` is valid until its connection closes, and the memory is reused for later connections. Across asynchronous work (a job, a state, a timer) keep `ses->id` instead of the pointer, and get the connection back with `nw_svr_get(svr, id)`, which returns NULL if the client is gone; `nw_svr_send(svr, id, ...)` does both steps. Ids are never 0 and never reused.
 
 **Send buffering.** `nw_ses_send` writes directly when it can and queues the rest. `buf_limit` caps that queue in units of `max_pkg_size` buffers; the default 0 means unlimited, so set a limit on servers that face untrusted clients. Datagram sends are never queued: a full socket buffer is reported as an error.
 
 **Flow control.** Dropping a peer that falls behind is the default and often the right thing. When it is not (a proxy, a relay, a big transfer), the library hands you the facts and the switches and leaves the policy to you: `nw_ses_pending(ses)` is the number of bytes still queued for a session, `on_drain` is called when that queue has been written out, and `nw_ses_pause_read` / `nw_ses_resume_read` stop and restart the input of a session, which makes the kernel hold its sender back. Passing data from `up` to `down` without piling it up is then two lines: pause `up` when `nw_ses_pending(down)` is over your mark, resume it in `on_drain` of `down`. All of it works on the connections of `nw_http` and `nw_ws` too.
 
-**Timeouts.** `idle_timeout` in the server config (optional) drops connections that send nothing for that long. `on_timeout` lets you decide instead: left open, a silent connection times out again one period later, and `ses->active_time` tells how long it has been silent, which is all a "ping, then give up" policy needs. A single connection can be given its own timeout (`nw_svr_set_clt_idle_timeout`) or a deadline that activity does not push back (`nw_svr_set_clt_deadline`). Timeouts are accurate to about a second.
+**Timeouts.** `idle_timeout` in the server config (optional) drops connections that send nothing for that long. `on_timeout` lets you decide instead: left open, a silent connection times out again one period later, and `ses->active_time` tells how long it has been silent, which is all a "ping, then give up" policy needs. A single connection can be given its own timeout (`nw_svr_set_idle_timeout`) or a deadline that activity does not push back (`nw_svr_set_deadline`). Timeouts are accurate to about a second.
 
-**Closing.** `nw_svr_close_clt` closes at once and drops unsent data. To say something last and have it arrive, send it and call `nw_svr_shutdown_clt`. Either way `on_connection_close` is called exactly once, and by then the connection is already out of the server: it is not counted, not found by id, not visited by the iterator, and sending on it returns -1. So the callback is free to send to the other connections or close them; "tell everybody that this one left" needs no care.
+**Closing.** `nw_svr_close` closes at once and drops unsent data. To say something last and have it arrive, send it and call `nw_svr_shutdown`. Either way `on_close` is called exactly once, and by then the connection is already out of the server: it is not counted, not found by id, not visited by the iterator, and sending on it returns -1. So the callback is free to send to the other connections or close them; "tell everybody that this one left" needs no care.
 
 **Walking the connections.** `nw_svr_iter_init` / `nw_svr_next` visit every connection of a server. Connections may be closed while walking, the current one or any other.
 
 **Datagram servers.** The session passed to `on_recv_pkg` is the listening one, and `nw_ses_send` replies to the sender of the datagram being handled. Reply inside the callback, or copy `ses->peer_addr`.
 
-**Clients.** A stream client retries every `reconnect_timeout` seconds (default 1.0), which is also how long a connect attempt may take. `on_close` is called once per lost connection or failed attempt; return > 0 from it to retry at once, or call `nw_clt_close` from it to stay closed. Check `nw_clt_connected` before sending. A datagram client is usable right after `nw_clt_start` and ignores UDP packets from any address other than its server.
+**Clients.** A stream client retries every `reconnect_timeout` seconds (default 1.0), which is also how long a connect attempt may take. `on_close` is called once per lost connection or failed attempt; return > 0 from it to retry at once, or call `nw_clt_stop` from it to stay closed. Check `nw_clt_connected` before sending. A datagram client is usable right after `nw_clt_start` and ignores UDP packets from any address other than its server.
 
-**A server given by name.** `nw_clt_cfg_parse` takes what `nw_sock_cfg_parse` takes and also a name, as in `tcp@db.internal:5432`. The name is looked up with the system resolver (`/etc/hosts`, DNS ...) on worker threads, so the loop never waits for it. When a name has several addresses they are tried one after the other and count as one attempt: `on_connect(false)` and `on_close` come once, after the last one has failed. The name is looked up again after every lost connection and every failed round, so a client follows a name that moves. A lookup that fails is reported through `on_error_msg` and counts as a failed attempt. A datagram client by name cannot send until its lookup is done: `on_connect(true)` tells when. It has no connection to lose, so its name is looked up once, when it starts: it keeps sending to the first address it got until `nw_clt_start` is called again. A server picked in `on_close` by changing `ses->peer_addr` is for clients given by address only: by name, the address always comes from the lookup. To resolve a name yourself, see `nw_dns.h`.
+**A server given by name.** `nw_clt_cfg_parse` takes what `nw_sock_addr_parse` takes and also a name, as in `tcp@db.internal:5432`. The name is looked up with the system resolver (`/etc/hosts`, DNS ...) on worker threads, so the loop never waits for it. When a name has several addresses they are tried one after the other and count as one attempt: `on_connect(false)` and `on_close` come once, after the last one has failed. The name is looked up again after every lost connection and every failed round, so a client follows a name that moves. A lookup that fails is reported through `on_error_msg` and counts as a failed attempt. A datagram client by name cannot send until its lookup is done: `on_connect(true)` tells when. It has no connection to lose, so its name is looked up once, when it starts: it keeps sending to the first address it got until `nw_clt_start` is called again. A server picked in `on_close` by changing `ses->peer_addr` is for clients given by address only: by name, the address always comes from the lookup. To resolve a name yourself, see `nw_dns.h`.
 
 **Fetching a url.** `nw_req_get("http://config.internal:8500/v1/app", 3.0, on_response, privdata)` makes the request on a thread of its own and calls `on_response(error, rsp, privdata)` on the loop thread, with the status, the headers and the body. A status other than 200 is not an error: `error` is for requests that got no response (name not found, connection refused, timeout, a broken response), and `rsp->error_msg` says which. The timeout is for the whole request. `nw_req_post(url, content_type, body, size, timeout, on_response, privdata)` sends a body the same way, as `application/json` when `content_type` is NULL; a request that failed may still have been received, and is never sent twice. The callback may be NULL when the outcome does not matter. What is put into a url (the value of a parameter) is encoded first with `nw_req_url_encode`. It is plain HTTP for a trusted network: no https, no redirects, no request headers of your own, a new connection for each request, and at most `NW_REQ_THREADS` (2) requests at a time per loop thread, which is what fetching a configuration or posting an alert now and then needs. See `nw_req.h`.
 

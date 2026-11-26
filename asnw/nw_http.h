@@ -186,10 +186,10 @@ typedef struct nw_http_svr nw_http_svr;
  */
 
 typedef struct nw_http_svr_cfg {
-    /* number of entries in bind_arr, at least 1 */
+    /* number of entries in binds, at least 1 */
     uint32_t bind_count;
     /* the addresses to listen on, all SOCK_STREAM (tcp or unix stream) */
-    nw_svr_bind *bind_arr;
+    nw_svr_bind *binds;
     /* max size of a request, head and body together, in bytes. it is the
      * size of the read buffer a connection holds while a request is coming
      * in. 0 for the default, 64K. at most 1G */
@@ -225,10 +225,10 @@ typedef struct nw_http_svr_type {
      * that is never answered keeps its connection open */
     void (*on_request)(nw_ses *ses, nw_http_request *req);
     /* optional, see nw_svr_type */
-    void (*on_new_connection)(nw_ses *ses);
+    void (*on_open)(nw_ses *ses);
     /* optional, see nw_svr_type. the connection is already out of the
      * server when this is called, a reply to it returns -1 */
-    void (*on_connection_close)(nw_ses *ses);
+    void (*on_close)(nw_ses *ses);
     /* optional, see nw_svr_type. refused requests (400, 413 ...) are
      * reported here too */
     void (*on_error_msg)(nw_ses *ses, const char *msg);
@@ -253,7 +253,7 @@ typedef struct nw_http_svr_type {
 
 /* the fields are for reading only */
 struct nw_http_svr {
-    /* the nw_svr underneath: raw_svr->clt_count, nw_svr_close_clt ...
+    /* the nw_svr underneath: raw_svr->ses_count, nw_svr_close ...
      * with threads: the connections of this thread; in the server returned
      * by nw_http_svr_create, the one that accepts, which has none */
     nw_svr *raw_svr;

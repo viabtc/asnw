@@ -30,12 +30,12 @@ static int decode_pkg(nw_ses *ses, void *data, size_t max)
     return 0;
 }
 
-static void on_new_connection(nw_ses *ses)
+static void on_open(nw_ses *ses)
 {
     printf("thread %d: new connection %s\n", nw_hub_index(hub), nw_sock_human_addr(&ses->peer_addr));
 }
 
-static void on_connection_close(nw_ses *ses)
+static void on_close(nw_ses *ses)
 {
     printf("thread %d: connection %s closed\n", nw_hub_index(hub), nw_sock_human_addr(&ses->peer_addr));
 }
@@ -52,11 +52,11 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
         /* ses->svr is the nw_svr of this thread */
         nw_svr *svr = ses->svr;
         len = snprintf(line, sizeof(line), "you are %llu on thread %d, which has %u connections and handled %llu lines\n",
-                (unsigned long long)ses->id, nw_hub_index(hub), svr->clt_count, (unsigned long long)lines_handled);
+                (unsigned long long)ses->id, nw_hub_index(hub), svr->ses_count, (unsigned long long)lines_handled);
         nw_ses_send(ses, line, len);
     } else if (size >= 4 && memcmp(data, "quit", 4) == 0) {
         nw_ses_send(ses, "bye\n", 4);
-        nw_svr_shutdown_clt(ses->svr, ses);
+        nw_svr_shutdown(ses->svr, ses);
     } else {
         /* to everybody on every thread */
         len = snprintf(line, sizeof(line), "[%llu] %.*s", (unsigned long long)ses->id, (int)size, (char *)data);
@@ -83,9 +83,9 @@ int main(int argc, char *argv[])
     }
 
     int bind_count = argc - 2;
-    nw_svr_bind *bind_arr = calloc(bind_count, sizeof(nw_svr_bind));
+    nw_svr_bind *binds = calloc(bind_count, sizeof(nw_svr_bind));
     for (int i = 0; i < bind_count; ++i) {
-        if (nw_sock_cfg_parse(argv[i + 2], &bind_arr[i].addr, &bind_arr[i].sock_type) < 0) {
+        if (nw_sock_addr_parse(argv[i + 2], &binds[i].addr, &binds[i].sock_type) < 0) {
             printf("parse bind: %s fail\n", argv[i + 2]);
             exit(0);
         }
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
     nw_hub_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.svr.bind_count = bind_count;
-    cfg.svr.bind_arr = bind_arr;
+    cfg.svr.binds = binds;
     cfg.svr.max_pkg_size = 1024;
     cfg.svr.buf_limit = 1024;
     cfg.thread_count = atoi(argv[1]);
@@ -103,8 +103,8 @@ int main(int argc, char *argv[])
     nw_hub_type type;
     memset(&type, 0, sizeof(type));
     type.svr.decode_pkg = decode_pkg;
-    type.svr.on_new_connection = on_new_connection;
-    type.svr.on_connection_close = on_connection_close;
+    type.svr.on_open = on_open;
+    type.svr.on_close = on_close;
     type.svr.on_recv_pkg = on_recv_pkg;
     type.svr.on_error_msg = on_error_msg;
     type.on_thread_start = on_thread_start;
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         printf("nw_hub_start fail\n");
         exit(0);
     }
-    free(bind_arr);
+    free(binds);
 
     printf("hub server start, %u threads\n", hub->thread_count);
     nw_loop_run();

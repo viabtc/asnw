@@ -40,13 +40,13 @@ int main(void)
     ut_unix_cfg(unix_cfg, sizeof(unix_cfg), "stream", "cloexec.sock");
     ut_unix_cfg(packet_cfg, sizeof(packet_cfg), "seqpacket", "cloexec-packet.sock");
     nw_svr_bind binds[3];
-    CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:0", &binds[0].addr, &binds[0].sock_type), 0);
-    CHECK_EQ(nw_sock_cfg_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
-    CHECK_EQ(nw_sock_cfg_parse(packet_cfg, &binds[2].addr, &binds[2].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &binds[0].addr, &binds[0].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(unix_cfg, &binds[1].addr, &binds[1].sock_type), 0);
+    CHECK_EQ(nw_sock_addr_parse(packet_cfg, &binds[2].addr, &binds[2].sock_type), 0);
     nw_svr_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.bind_count = 3;
-    cfg.bind_arr = binds;
+    cfg.binds = binds;
     cfg.max_pkg_size = 1024;
     nw_svr_type st;
     memset(&st, 0, sizeof(st));
@@ -71,11 +71,11 @@ int main(void)
         CHECK_EQ(nw_clt_start(clts[i]), 0);
     ut_run_for(0.1);
     CHECK_EQ(connected, 3);
-    CHECK_EQ(svr->clt_count, 3);
+    CHECK_EQ(svr->ses_count, 3);
 
     /* the flags of each kind of socket */
     for (int i = 0; i < 3; ++i) {
-        check_fd(svr->bind_list[i].sockfd, true);        /* listening */
+        check_fd(svr->binds[i].sockfd, true);        /* listening */
         check_fd(clts[i]->ses.sockfd, true);            /* connecting side */
     }
     nw_svr_iterator iter;
@@ -98,7 +98,7 @@ int main(void)
     /* a connection added from outside is made so */
     int outside = socket(AF_INET, SOCK_STREAM, 0);
     nw_addr addr;
-    CHECK_EQ(nw_sock_host_addr(svr->bind_list[0].sockfd, &addr), 0);
+    CHECK_EQ(nw_sock_local_addr(svr->binds[0].sockfd, &addr), 0);
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in in;
     memset(&in, 0, sizeof(in));
@@ -110,7 +110,7 @@ int main(void)
     CHECK_EQ(getsockname(lfd, (struct sockaddr *)&in, &len), 0);
     CHECK_EQ(connect(outside, (struct sockaddr *)&in, sizeof(in)), 0);
     CHECK(!(fcntl(outside, F_GETFD) & FD_CLOEXEC));
-    CHECK_EQ(nw_svr_add_clt_fd(svr, outside), 0);
+    CHECK_EQ(nw_svr_add_fd(svr, outside), 0);
     check_fd(outside, true);
 
     /*
@@ -123,7 +123,7 @@ int main(void)
     close(pair[0]);
     close(pair[1]);
     close(received_fd);
-    CHECK_EQ(svr->clt_count, 4);
+    CHECK_EQ(svr->ses_count, 4);
     FILE *child = popen("for f in /proc/self/fd/*; do echo \"${f##*/} $(readlink $f)\"; done 2>/dev/null", "r");
     CHECK(child != NULL);
     char line[256], target[200];
