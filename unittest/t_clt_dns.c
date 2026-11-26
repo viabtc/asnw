@@ -36,6 +36,9 @@ int getaddrinfo(const char *node, const char *service, const struct addrinfo *hi
         ips[count++] = IP(2);
         ips[count++] = IP(4);
         ips[count++] = IP(5);
+    } else if (strcmp(node, "hang.test") == 0) {
+        ips[count++] = IP(6);           /* takes no connection, and does not say so */
+        ips[count++] = IP(1);
     } else if (strcmp(node, "moving.test") == 0) {
         ips[count++] = __sync_fetch_and_add(&moving_ip, 0);
     } else if (strcmp(node, "slow.test") == 0) {
@@ -94,6 +97,7 @@ static void drop_clients(nw_svr *svr)
 struct client {
     nw_clt *clt;
     int connected, failed, closed, errors, received;
+    bool stop_on_error;
     uint32_t peer_ip;
     char last_error[256];
 };
@@ -122,6 +126,8 @@ static void on_error_msg(nw_ses *ses, const char *msg)
     struct client *c = ses->privdata;
     c->errors++;
     snprintf(c->last_error, sizeof(c->last_error), "%s", msg);
+    if (c->stop_on_error)
+        CHECK_EQ(nw_clt_stop(c->clt), 0);
 }
 
 static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
@@ -288,6 +294,68 @@ int main(void)
     CHECK_EQ(c.failed, 0);
     CHECK(!nw_clt_connected(c.clt));
     nw_clt_release(c.clt);
+
+    /* stopped from on_error_msg: on_close once, no other lookup */
+    lookups = 0;
+    client_start(&c, "tcp", "nowhere.test", 0.05);
+    c.stop_on_error = true;
+    WAIT(c.errors == 1);
+    ut_run_for(0.3);
+    CHECK_EQ(c.errors, 1);
+    CHECK_EQ(c.closed, 1);
+    CHECK_EQ(GET(lookups), 1);
+    CHECK(!nw_timer_active(&c.clt->timer));
+    nw_clt_release(c.clt);
+    lookups = 0;
+    client_start(&c, "udp", "nowhere.test", 0.05);
+    c.stop_on_error = true;
+    WAIT(c.errors == 1);
+    ut_run_for(0.3);
+    CHECK_EQ(c.errors, 1);
+    CHECK_EQ(GET(lookups), 1);
+    CHECK(!nw_timer_active(&c.clt->timer));
+    nw_clt_release(c.clt);
+
+    /*
+     * an address that does not answer at all. a listener with a full
+     * backlog ignores further connection requests, so the attempt hangs;
+     * after reconnect_timeout the client moves on to the next address,
+     * as quietly as from one that refuses
+     */
+    int hang = socket(AF_INET, SOCK_STREAM, 0);
+    CHECK(hang >= 0);
+    struct sockaddr_in in;
+    memset(&in, 0, sizeof(in));
+    in.sin_family = AF_INET;
+    in.sin_addr.s_addr = htonl(IP(6));
+    in.sin_port = htons(port);
+    CHECK_EQ(bind(hang, (struct sockaddr *)&in, sizeof(in)), 0);
+    CHECK_EQ(listen(hang, 0), 0);
+    int fillers[8];
+    for (int i = 0; i < 8; ++i) {
+        fillers[i] = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        connect(fillers[i], (struct sockaddr *)&in, sizeof(in));
+    }
+    usleep(50 * 1000);
+    lookups = 0;
+    begin = ev_time();
+    client_start(&c, "tcp", "hang.test", 0.3);
+    WAIT(c.connected == 1);
+    if (c.peer_ip == IP(1)) {
+        CHECK(ev_time() - begin >= 0.25);       /* it waited for the first address */
+        CHECK(ev_time() - begin < 2.0);
+        CHECK_EQ(c.failed, 0);
+        CHECK_EQ(c.closed, 0);
+        CHECK_EQ(c.errors, 0);
+        CHECK_EQ(GET(lookups), 1);
+    } else {
+        /* this kernel let the connection through anyway: nothing to check */
+        fprintf(stderr, "the backlog did not fill up here, failover after a connect timeout not exercised\n");
+    }
+    nw_clt_release(c.clt);
+    for (int i = 0; i < 8; ++i)
+        close(fillers[i]);
+    close(hang);
 
     /* closed while the lookup is running: its answer changes nothing */
     client_start(&c, "tcp", "slow.test", 0.1);

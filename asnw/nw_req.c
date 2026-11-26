@@ -41,6 +41,7 @@ struct nw_req {
     /* the result: written by the worker before it hands the request back */
     int error;
     char error_msg[256];
+    char no_body[1];
     char *data;
     size_t len;
     size_t cap;
@@ -449,7 +450,7 @@ static void on_finish(nw_job_entry *entry)
         return;
     nw_req_response *rsp = &req->rsp;
     if (req->error) {
-        rsp->body = "";
+        rsp->body = req->no_body;
         rsp->error_msg = req->error_msg;
     } else {
         rsp->status = req->status;

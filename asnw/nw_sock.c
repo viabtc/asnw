@@ -169,9 +169,9 @@ static int nw_sock_addr_fill_unix(nw_addr *addr, const char *unix_path)
     return 0;
 }
 
-int nw_sock_addr_parse(const char *cfg, nw_addr *addr, int *sock_type)
+int nw_sock_addr_parse(const char *str, nw_addr *addr, int *sock_type)
 {
-    char *s = strdup(cfg);
+    char *s = strdup(str);
     if (s == NULL)
         return -1;
     char *sep = strchr(s, '@');

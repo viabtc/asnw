@@ -87,7 +87,7 @@ int nw_sock_set_mode(nw_addr *addr, mode_t mode);
  *   -4: bad ip or port
  *   -5: unix path empty or too long
  */
-int nw_sock_addr_parse(const char *cfg, nw_addr *addr, int *sock_type);
+int nw_sock_addr_parse(const char *str, nw_addr *addr, int *sock_type);
 
 /* the functions below return 0 on success and -1 on error with errno set,
  * except nw_sock_errno */

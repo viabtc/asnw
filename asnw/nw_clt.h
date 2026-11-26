@@ -198,6 +198,10 @@ typedef struct nw_clt {
     /* on_close is running; nw_clt_stop was called from inside it */
     bool in_on_close;
     bool close_requested;
+    /* changes each time the client is started or stopped. a callback that
+     * did either has taken over: what the library was doing for the
+     * connection it reported is dropped */
+    uint32_t generation;
     double reconnect_timeout;
     uint32_t read_mem;
     uint32_t write_mem;
@@ -233,7 +237,10 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata);
 int nw_clt_start(nw_clt *clt);
 
 /* close the connection and stay closed: on_close is called, pending data
- * is dropped and no reconnect is scheduled. nw_clt_start starts it again */
+ * is dropped and no reconnect is scheduled. nw_clt_start starts it again.
+ * it may be called from any callback of the client, with the same result:
+ * on_close once, and nothing more happens for the connection or the
+ * attempt the callback was called for */
 int nw_clt_stop(nw_clt *clt);
 
 /* close without calling on_close, and free the client. don't call it from

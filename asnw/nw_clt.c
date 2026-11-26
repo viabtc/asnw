@@ -120,13 +120,6 @@ static int clt_close(nw_clt *clt)
     return ret;
 }
 
-/*
- * The one place a lost connection or a failed connect is handled: tell the
- * user, close, and schedule the next attempt. on_close returning > 0 asks
- * for an immediate retry; that retry still goes through the event loop
- * (a zero delay timer) so a connect that keeps failing synchronously can
- * never recurse.
- */
 /* tell the application that the connection is over. while it is told the
  * session refuses to send, quietly: a send that failed with an error would
  * bring us right back here for the same connection */
@@ -142,6 +135,13 @@ static int call_on_close(nw_clt *clt)
     return ret;
 }
 
+/*
+ * The one place a lost connection or a failed connect is handled: tell the
+ * user, close, and schedule the next attempt. on_close returning > 0 asks
+ * for an immediate retry; that retry still goes through the event loop
+ * (a zero delay timer) so a connect that keeps failing synchronously can
+ * never recurse.
+ */
 static void close_and_reconnect(nw_clt *clt)
 {
     if (clt->in_on_close)
@@ -196,8 +196,11 @@ static void on_resolved(int error, nw_addr *addrs, uint32_t count, void *privdat
          * application it is over, try again later */
         char msg[NW_DNS_MAX_NAME + 128];
         snprintf(msg, sizeof(msg), "resolve %s: %s", clt->name, nw_dns_strerror(error));
+        uint32_t generation = clt->generation;
         if (clt->type.on_error_msg)
             clt->type.on_error_msg(&clt->ses, msg);
+        if (generation != clt->generation)
+            return;
         if (clt->ses.sock_type == SOCK_DGRAM) {
             /* nothing was open, there is nothing to close */
             reconnect_later(clt, clt->reconnect_timeout);
@@ -230,9 +233,14 @@ static void on_connect(nw_ses *ses, bool result)
             clt->type.on_connect(ses, result);
         }
     } else {
+        uint32_t generation = clt->generation;
         if (clt->type.on_connect) {
             clt->type.on_connect(ses, result);
         }
+        /* stopped or started again from the callback: the application has
+         * taken over, this attempt is not ours to finish any more */
+        if (generation != clt->generation)
+            return;
         close_and_reconnect(clt);
     }
 }
@@ -240,9 +248,12 @@ static void on_connect(nw_ses *ses, bool result)
 static void on_error(nw_ses *ses, const char *msg)
 {
     nw_clt *clt = (nw_clt *)ses;
+    uint32_t generation = clt->generation;
     if (clt->type.on_error_msg) {
         clt->type.on_error_msg(ses, msg);
     }
+    if (generation != clt->generation)
+        return;
     if (ses->sock_type == SOCK_DGRAM)
         return;
     close_and_reconnect(clt);
@@ -375,6 +386,7 @@ int nw_clt_start(nw_clt *clt)
 {
     /* starting an already started client restarts it, the old socket and
      * any pending reconnect or lookup are dropped */
+    clt->generation++;
     clt_close(clt);
 
     if (clt->name) {
@@ -454,6 +466,7 @@ int nw_clt_stop(nw_clt *clt)
         clt->close_requested = true;
         return 0;
     }
+    clt->generation++;
     call_on_close(clt);
     clt->close_requested = false;
     clt->resolve_again = true;
