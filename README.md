@@ -4,7 +4,7 @@ A small asynchronous network library for Linux, written in C on top of [libev](h
 
 You describe a server or a client with a config struct and a handful of callbacks; asnw does the sockets, buffering, message framing, reconnecting and timers. One API covers five transports: TCP, UDP, and unix stream / datagram / seqpacket sockets (including file descriptor passing). An HTTP/1.1 server and a WebSocket server are included.
 
-The core is about 5,000 lines and the two protocol servers another 2,800. No dependency other than libev. One event loop per thread and no locks in the callbacks; `nw_hub` runs a server on several threads.
+The core is about 6,600 lines and the two protocol servers another 2,900, headers and comments included. No dependency other than libev. One event loop per thread and no locks in the callbacks; `nw_hub` runs a server on several threads.
 
 The headers in `asnw/` are the reference: every struct field, callback and function is documented there, and each header starts with an overview of its module.
 
@@ -284,6 +284,7 @@ Built into `build/debug/test/`, `build/debug/wrapper/` and `build/debug/c1000k/`
 | `test/test_*_clt` | Plain socket clients, one per transport, for poking at a server |
 | `c1000k/` | Server and client for a one million connection test |
 | `wrapper/` | `ut_rpc`, an example of a higher level wrapper built on `nw_svr` and `nw_clt`. See [wrapper/README.md](wrapper/README.md) |
+| `asnw/AGENTS.md` | Notes for AI coding agents that use or change the library: the modules, the rules that are easy to get wrong, and the design decisions that are not bugs |
 
 ## Testing
 
