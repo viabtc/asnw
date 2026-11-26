@@ -31,15 +31,22 @@ typedef struct nw_buf {
 
 /*
  * nw_buf_pool is a factory of nw_buf of one size. freed bufs are kept for
- * reuse and only given back to the system by nw_buf_pool_release, so the
- * pool keeps the memory of its busiest moment.
+ * reuse: the pool never gives memory back to the system by itself, so it
+ * keeps the memory of its busiest moment until nw_buf_pool_release, or
+ * until the program asks for it with nw_buf_pool_shrink.
  *
  * that is on purpose, here and in nw_cache: the memory of something that
  * was freed stays readable. the library counts on it - a session that was
  * closed inside a callback is still asked whether it is closed, a callback
  * that closed its own connection may still be reading its message, an
- * iterator steps off a deleted entry. don't make them free.
+ * iterator steps off a deleted entry. don't make them free on their own;
+ * nw_buf_pool_shrink is safe because the program calls it, at a moment
+ * when nothing of the kind is going on.
  */
+
+/* the free bufs nw_buf_pool_shrink always leaves in a pool */
+# define NW_BUF_POOL_MIN_FREE 64
+
 typedef struct nw_buf_pool {
     /* capacity of every buf of this pool */
     uint32_t size;
@@ -104,6 +111,23 @@ void nw_buf_free(nw_buf_pool *pool, nw_buf *buf);
 /* free the pool and the bufs waiting for reuse. bufs still in use must be
  * given back first */
 void nw_buf_pool_release(nw_buf_pool *pool);
+/*
+ * give the free bufs a pool has no use for back to the system. whether
+ * and when is for the program to decide: after a peak of traffic, every
+ * few minutes, never.
+ *
+ * the pool keeps as many free bufs as it has bufs in use, and never less
+ * than NW_BUF_POOL_MIN_FREE; what it has beyond that is freed. a pool at
+ * work is therefore left with what it needs, and a small one is left
+ * alone. return the number of bufs freed.
+ *
+ * call it on the thread the pool belongs to, from a timer of your own or
+ * from nw_hub_run, not from a callback of a server or a client: a
+ * callback that closed its connection may still be reading the message it
+ * was given, out of a buf that is free by then. the pool of a server is
+ * svr->buf_pool, that of a client clt->buf_pool.
+ */
+uint32_t nw_buf_pool_shrink(nw_buf_pool *pool);
 
 /* nw_buf_list operation */
 

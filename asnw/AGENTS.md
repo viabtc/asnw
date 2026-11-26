@@ -158,11 +158,15 @@ runs on the main thread.
 These were considered and decided. Do not "fix" them, and do not propose
 them again without a new reason:
 
-- **Pools and caches never give memory back to the system.** Servers own
-  their machine. The library also relies on it: memory returned to a
-  `nw_cache` or `nw_buf_pool` stays readable (a session is still read after
-  it is closed, an iterator steps off a deleted entry). Freeing it creates
-  use-after-free.
+- **Pools and caches never give memory back to the system by themselves.**
+  Servers own their machine. The library also relies on it: memory
+  returned to a `nw_cache` or `nw_buf_pool` stays readable (a session is
+  still read after it is closed, an iterator steps off a deleted entry).
+  Freeing it from inside the library creates use-after-free. The one way
+  out is `nw_buf_pool_shrink`, which the program calls when it chooses to,
+  from a timer of its own: it frees the bufs beyond those in use and
+  beyond a minimum of 64. There is no such thing for `nw_cache`, whose
+  objects are small and whose addresses are counted on.
 - **`buf_limit` defaults to unlimited**, and there is no built-in rate
   limiting or backpressure policy. That belongs to the program.
 - **`nw_clt` has no reconnect backoff, no idle timeout and no heartbeat.**
