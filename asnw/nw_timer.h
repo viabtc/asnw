@@ -8,7 +8,7 @@
 
 # include <stdbool.h>
 
-# include "nw_evt.h"
+# include "nw_loop.h"
 
 /*
  * a nw_timer is owned by the caller (on the stack, in a struct ...) and must

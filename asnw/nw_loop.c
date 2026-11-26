@@ -9,7 +9,7 @@
 # include <libgen.h>
 # include <pthread.h>
 
-# include "nw_evt.h"
+# include "nw_loop.h"
 
 /* one loop per thread */
 __thread struct ev_loop *nw_default_loop;

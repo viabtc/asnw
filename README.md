@@ -27,7 +27,7 @@ The core:
 | `nw_dict` | Hash table from integer keys to pointers. Used by `nw_svr` and `nw_state`, usable on its own. |
 | `nw_buf` | Buffer pool, buffer list and a fixed size object cache. |
 | `nw_sock` | Address parsing and socket option helpers. |
-| `nw_evt` | The event loop (`nw_loop_run`, `nw_loop_break`). |
+| `nw_loop` | The event loop (`nw_loop_run`, `nw_loop_break`). |
 | `nw_ses` | A session: one socket and its buffers. Used by `nw_svr` and `nw_clt`; you receive it in callbacks. |
 
 Protocols built on the core, which knows nothing about them:

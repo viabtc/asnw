@@ -3,8 +3,8 @@
  *     History: yang@haipo.me, 2016/03/19, create
  */
 
-# ifndef _NW_EVT_H_
-# define _NW_EVT_H_
+# ifndef _NW_LOOP_H_
+# define _NW_LOOP_H_
 
 # include "ev.h"
 

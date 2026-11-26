@@ -11,7 +11,7 @@
 
 # include "nw_dns.h"
 # include "nw_job.h"
-# include "nw_evt.h"
+# include "nw_loop.h"
 
 struct nw_dns_query {
     char name[NW_DNS_MAX_NAME];

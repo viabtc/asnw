@@ -19,7 +19,7 @@
 
 # include "nw_req.h"
 # include "nw_job.h"
-# include "nw_evt.h"
+# include "nw_loop.h"
 
 # define HEAD_MAX       (64 * 1024)
 # define CHUNK_LINE_MAX 1024

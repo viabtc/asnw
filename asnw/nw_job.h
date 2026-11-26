@@ -10,7 +10,7 @@
 # include <stdbool.h>
 # include <pthread.h>
 
-# include "nw_evt.h"
+# include "nw_loop.h"
 # include "nw_buf.h"
 
 /*

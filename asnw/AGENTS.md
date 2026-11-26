@@ -29,7 +29,7 @@ it; do not guess a signature.
 | `nw_state` | Pending requests by id, each with a timeout | You wait for the answer to something you sent |
 | `nw_timer` | One-shot and repeating timers | |
 | `nw_ses` | A session: one socket and its buffers | You receive it in callbacks; `nw_ses_send` and flow control live here |
-| `nw_evt` | The event loop of the thread: `nw_loop_run`, `nw_loop_break`, `nw_loop_release` | |
+| `nw_loop` | The event loop of the thread: `nw_loop_run`, `nw_loop_break`, `nw_loop_release` | |
 | `nw_sock` | Addresses: `nw_sock_addr_parse("tcp@127.0.0.1:80")`, socket options | |
 | `nw_buf` | Buffer pool and object cache | Internal; a program rarely needs it |
 | `nw_dict` | Hash table with uint64 keys | Internal, usable on its own |
@@ -236,15 +236,12 @@ Words that mean one thing each:
 | `message` | A WebSocket message | `on_message`, `max_message_size` |
 | `pkg` | One message of the application on a `nw_svr` or `nw_clt` | `decode_pkg`, `on_recv_pkg` |
 | `body` | The payload of an HTTP message | `req->body`, `body_size` |
-| `bind` | An address a server listens on | `binds`, `bind_count`, `binds` |
+| `bind` | An address a server listens on | `binds`, `bind_count` |
 | `name` | The name of a server to connect to | `cfg.name`, `NW_DNS_MAX_NAME` |
 | `local`, `peer` | The two ends of a socket | `ses->local_addr`, `ses->peer_addr` |
 | `ses` | A connection, in the names of a server | `ses_count`, `nw_svr_get` returns one |
 | `post` | The HTTP method | `nw_req_post` |
 | `run` | To have a function called on another thread | `nw_hub_run` |
-
-One name does not follow its file: the loop functions are `nw_loop_*`
-and live in `nw_evt`.
 
 ## Changing the library
 
