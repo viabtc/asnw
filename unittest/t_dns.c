@@ -10,11 +10,11 @@
 
 static int answers, failures;
 static int last_error;
-static nw_addr_t last_addrs[NW_DNS_ADDR_MAX];
+static nw_addr last_addrs[NW_DNS_MAX_ADDRS];
 static uint32_t last_count;
 static pthread_t loop_thread;
 
-static void on_answer(int error, nw_addr_t *addrs, uint32_t count, void *privdata)
+static void on_answer(int error, nw_addr *addrs, uint32_t count, void *privdata)
 {
     CHECK(pthread_equal(pthread_self(), loop_thread));      /* not on a resolver thread */
     answers++;
@@ -25,8 +25,8 @@ static void on_answer(int error, nw_addr_t *addrs, uint32_t count, void *privdat
         CHECK(addrs == NULL);
         CHECK_EQ(count, 0);
     } else {
-        CHECK(count >= 1 && count <= NW_DNS_ADDR_MAX);
-        memcpy(last_addrs, addrs, count * sizeof(nw_addr_t));
+        CHECK(count >= 1 && count <= NW_DNS_MAX_ADDRS);
+        memcpy(last_addrs, addrs, count * sizeof(nw_addr));
     }
     if (privdata)
         (*(int *)privdata)++;
@@ -39,7 +39,7 @@ static void wait_answers(int want)
     CHECK_EQ(answers, want);
 }
 
-static bool is_loopback(nw_addr_t *addr)
+static bool is_loopback(nw_addr *addr)
 {
     if (addr->family == AF_INET)
         return addr->addrlen == sizeof(addr->in) && (ntohl(addr->in.sin_addr.s_addr) >> 24) == 127;
@@ -51,7 +51,7 @@ static bool is_loopback(nw_addr_t *addr)
 /* another loop thread has resolver threads of its own, gone with its loop */
 static int thread_answers[2];
 
-static void on_thread_answer(int error, nw_addr_t *addrs, uint32_t count, void *privdata)
+static void on_thread_answer(int error, nw_addr *addrs, uint32_t count, void *privdata)
 {
     int *mine = privdata;
     CHECK_EQ(error, 0);
@@ -117,11 +117,11 @@ int main(void)
 
     /* refused on the spot */
     CHECK(nw_dns_resolve("", 80, on_answer, NULL) == NULL);
-    char long_name[NW_DNS_HOST_MAX + 10];
+    char long_name[NW_DNS_MAX_NAME + 10];
     memset(long_name, 'a', sizeof(long_name));
     long_name[sizeof(long_name) - 1] = 0;
     CHECK(nw_dns_resolve(long_name, 80, on_answer, NULL) == NULL);
-    long_name[NW_DNS_HOST_MAX - 1] = 0;                     /* the longest possible: accepted, not found */
+    long_name[NW_DNS_MAX_NAME - 1] = 0;                     /* the longest possible: accepted, not found */
     CHECK(nw_dns_resolve(long_name, 80, on_answer, NULL) != NULL);
     wait_answers(5);
     CHECK(last_error != 0);
@@ -130,7 +130,7 @@ int main(void)
     int kept = 0, cancelled = 0;
     answers = 0;
     for (int i = 0; i < 60; ++i) {
-        nw_dns_req *req = nw_dns_resolve("localhost", i, on_answer, i % 2 ? &cancelled : &kept);
+        nw_dns_query *req = nw_dns_resolve("localhost", i, on_answer, i % 2 ? &cancelled : &kept);
         CHECK(req != NULL);
         if (i % 2)
             nw_dns_cancel(req);

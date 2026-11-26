@@ -209,7 +209,7 @@ static void nw_svr_free(nw_svr *svr)
     free(svr);
 }
 
-static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
+static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr *peer_addr)
 {
     nw_svr *svr = (nw_svr *)ses->svr;
     set_socket_option(svr, sockfd);
@@ -237,7 +237,7 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
         }
         return -1;
     }
-    memcpy(&clt->peer_addr, peer_addr, sizeof(nw_addr_t));
+    memcpy(&clt->peer_addr, peer_addr, sizeof(nw_addr));
     clt->host_addr   = ses->host_addr;
     clt->sockfd      = sockfd;
     clt->sock_type   = ses->sock_type;
@@ -280,7 +280,7 @@ static int nw_svr_add_clt(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
     return 0;
 }
 
-static int on_accept(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
+static int on_accept(nw_ses *ses, int sockfd, nw_addr *peer_addr)
 {
     nw_svr *svr = (nw_svr *)ses->svr;
     if (svr->type.on_accept) {
@@ -291,7 +291,7 @@ static int on_accept(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
 
 int nw_svr_add_clt_fd(nw_svr *svr, int fd)
 {
-    nw_addr_t peer_addr;
+    nw_addr peer_addr;
     if (nw_sock_peer_addr(fd, &peer_addr) < 0) {
         return -1;
     }
@@ -311,7 +311,7 @@ int nw_svr_add_clt_fd(nw_svr *svr, int fd)
     return nw_svr_add_clt(ses, fd, &peer_addr);
 }
 
-int nw_svr_add_accepted_fd(nw_svr *svr, uint32_t bind_index, int fd, nw_addr_t *peer_addr)
+int nw_svr_add_accepted_fd(nw_svr *svr, uint32_t bind_index, int fd, nw_addr *peer_addr)
 {
     if (bind_index >= svr->svr_count)
         return -1;
@@ -374,13 +374,13 @@ nw_svr *nw_svr_create(nw_svr_cfg *cfg, nw_svr_type *type, void *privdata)
             nw_svr_free(svr);
             return NULL;
         }
-        nw_addr_t *host_addr = malloc(sizeof(nw_addr_t));
+        nw_addr *host_addr = malloc(sizeof(nw_addr));
         if (host_addr == NULL) {
             close(sockfd);
             nw_svr_free(svr);
             return NULL;
         }
-        memcpy(host_addr, &cfg->bind_arr[i].addr, sizeof(nw_addr_t));
+        memcpy(host_addr, &cfg->bind_arr[i].addr, sizeof(nw_addr));
         if (nw_ses_init(ses, nw_default_loop, svr->buf_pool, svr->buf_limit, NW_SES_TYPE_SERVER) < 0) {
             close(sockfd);
             free(host_addr);

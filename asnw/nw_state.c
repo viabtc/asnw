@@ -15,67 +15,67 @@ nw_state *nw_state_create(nw_state_type *type, uint32_t data_size)
         return NULL;
 
     nw_loop_init();
-    nw_state *context = malloc(sizeof(nw_state));
-    if (context == NULL) {
+    nw_state *state = malloc(sizeof(nw_state));
+    if (state == NULL) {
         return NULL;
     }
-    memset(context, 0, sizeof(nw_state));
-    context->loop = nw_default_loop;
-    context->type = *type;
-    context->data_size = data_size;
-    context->cache = nw_cache_create(sizeof(nw_state_entry) + data_size);
-    if (context->cache == NULL) {
-        free(context);
+    memset(state, 0, sizeof(nw_state));
+    state->loop = nw_default_loop;
+    state->type = *type;
+    state->data_size = data_size;
+    state->cache = nw_cache_create(sizeof(nw_state_entry) + data_size);
+    if (state->cache == NULL) {
+        free(state);
         return NULL;
     }
-    context->dict = nw_dict_create(0);
-    if (context->dict == NULL) {
-        nw_cache_release(context->cache);
-        free(context);
+    state->dict = nw_dict_create(0);
+    if (state->dict == NULL) {
+        nw_cache_release(state->cache);
+        free(state);
         return NULL;
     }
 
-    return context;
+    return state;
 }
 
-static void state_release(nw_state *context, nw_state_entry *entry)
+static void state_release(nw_state *state, nw_state_entry *entry)
 {
-    if (context->type.on_release)
-        context->type.on_release(entry);
-    nw_cache_free(context->cache, entry);
+    if (state->type.on_release)
+        state->type.on_release(entry);
+    nw_cache_free(state->cache, entry);
 }
 
 static void on_timeout(struct ev_loop *loop, ev_timer *ev, int events)
 {
     nw_state_entry *entry = (nw_state_entry *)ev;
-    nw_state *context = entry->context;
+    nw_state *state = entry->context;
     /* take it out of the dict first: whatever the callback does with this
      * id (del, mod, add it again) can no longer touch the entry being
      * timed out */
-    nw_dict_del(context->dict, entry->id);
-    context->type.on_timeout(entry);
-    state_release(context, entry);
+    nw_dict_del(state->dict, entry->id);
+    state->type.on_timeout(entry);
+    state_release(state, entry);
 }
 
-static uint32_t get_available_id(nw_state *context)
+static uint32_t get_available_id(nw_state *state)
 {
     while (true) {
-        context->id_start++;
-        if (context->id_start == 0)
-            context->id_start++;
-        if (nw_state_get(context, context->id_start) == NULL)
+        state->id_start++;
+        if (state->id_start == 0)
+            state->id_start++;
+        if (nw_state_get(state, state->id_start) == NULL)
             break;
     }
-    return context->id_start;
+    return state->id_start;
 }
 
-nw_state_entry *nw_state_add(nw_state *context, double timeout, uint32_t id)
+nw_state_entry *nw_state_add(nw_state *state, double timeout, uint32_t id)
 {
-    if (id != 0 && nw_state_get(context, id) != NULL)
+    if (id != 0 && nw_state_get(state, id) != NULL)
         return NULL;
-    if (nw_dict_count(context->dict) == UINT32_MAX)
+    if (nw_dict_count(state->dict) == UINT32_MAX)
         return NULL;
-    nw_state_entry *entry = nw_cache_alloc(context->cache);
+    nw_state_entry *entry = nw_cache_alloc(state->cache);
     if (entry == NULL) {
         return NULL;
     }
@@ -83,73 +83,73 @@ nw_state_entry *nw_state_add(nw_state *context, double timeout, uint32_t id)
     if (id != 0) {
         entry->id = id;
     } else {
-        entry->id = get_available_id(context);
+        entry->id = get_available_id(state);
     }
-    if (nw_dict_add(context->dict, entry->id, entry) < 0) {
-        nw_cache_free(context->cache, entry);
+    if (nw_dict_add(state->dict, entry->id, entry) < 0) {
+        nw_cache_free(state->cache, entry);
         return NULL;
     }
     ev_timer_init(&entry->ev, on_timeout, timeout, 0);
-    ev_timer_start(context->loop, &entry->ev);
-    entry->context = context;
+    ev_timer_start(state->loop, &entry->ev);
+    entry->context = state;
     entry->data = ((void *)entry + sizeof(nw_state_entry));
-    memset(entry->data, 0, context->data_size);
+    memset(entry->data, 0, state->data_size);
 
     return entry;
 }
 
-nw_state_entry *nw_state_get(nw_state *context, uint32_t id)
+nw_state_entry *nw_state_get(nw_state *state, uint32_t id)
 {
-    return nw_dict_get(context->dict, id);
+    return nw_dict_get(state->dict, id);
 }
 
-int nw_state_mod(nw_state *context, uint32_t id, double timeout)
+int nw_state_mod(nw_state *state, uint32_t id, double timeout)
 {
-    nw_state_entry *entry = nw_state_get(context, id);
+    nw_state_entry *entry = nw_state_get(state, id);
     if (entry == NULL)
         return -1;
-    ev_timer_stop(context->loop, &entry->ev);
+    ev_timer_stop(state->loop, &entry->ev);
     ev_timer_set(&entry->ev, timeout, 0);
-    ev_timer_start(context->loop, &entry->ev);
+    ev_timer_start(state->loop, &entry->ev);
 
     return 0;
 }
 
-int nw_state_del(nw_state *context, uint32_t id)
+int nw_state_del(nw_state *state, uint32_t id)
 {
-    nw_state_entry *entry = nw_state_get(context, id);
+    nw_state_entry *entry = nw_state_get(state, id);
     if (entry == NULL)
         return -1;
-    ev_timer_stop(context->loop, &entry->ev);
-    nw_dict_del(context->dict, id);
-    state_release(context, entry);
+    ev_timer_stop(state->loop, &entry->ev);
+    nw_dict_del(state->dict, id);
+    state_release(state, entry);
 
     return 0;
 }
 
-size_t nw_state_count(nw_state *context)
+size_t nw_state_count(nw_state *state)
 {
-    return nw_dict_count(context->dict);
+    return nw_dict_count(state->dict);
 }
 
-void nw_state_release(nw_state *context)
+void nw_state_release(nw_state *state)
 {
     nw_dict_iterator iter;
     nw_dict_entry *item;
-    nw_dict_iter_init(&iter, context->dict);
+    nw_dict_iter_init(&iter, state->dict);
     while ((item = nw_dict_next(&iter)) != NULL) {
         nw_state_entry *entry = item->val;
-        ev_timer_stop(context->loop, &entry->ev);
-        state_release(context, entry);
+        ev_timer_stop(state->loop, &entry->ev);
+        state_release(state, entry);
     }
-    nw_dict_release(context->dict);
-    nw_cache_release(context->cache);
-    free(context);
+    nw_dict_release(state->dict);
+    nw_cache_release(state->cache);
+    free(state);
 }
 
-void nw_state_iter_init(nw_state_iterator *iter, nw_state *context)
+void nw_state_iter_init(nw_state_iterator *iter, nw_state *state)
 {
-    nw_dict_iter_init(&iter->iter, context->dict);
+    nw_dict_iter_init(&iter->iter, state->dict);
 }
 
 nw_state_entry *nw_state_next(nw_state_iterator *iter)

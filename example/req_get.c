@@ -11,7 +11,7 @@
 
 static int result = 1;
 
-static void on_response(int error, nw_req_rsp *rsp, void *privdata)
+static void on_response(int error, nw_req_response *rsp, void *privdata)
 {
     if (error) {
         fprintf(stderr, "error %d: %s\n", error, rsp->message);

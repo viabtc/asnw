@@ -53,7 +53,7 @@ struct nw_req {
         uint32_t value;
     } offsets[NW_REQ_MAX_HEADERS];
 
-    nw_req_rsp rsp;
+    nw_req_response rsp;
 };
 
 /* the request threads of the calling loop thread */
@@ -447,7 +447,7 @@ static void on_finish(nw_job_entry *entry)
     /* nobody wants to know: cancelled, or made without a callback */
     if (req->cancelled || req->callback == NULL)
         return;
-    nw_req_rsp *rsp = &req->rsp;
+    nw_req_response *rsp = &req->rsp;
     if (req->error) {
         rsp->body = "";
         rsp->message = req->message;
@@ -518,7 +518,7 @@ static int build_request(struct nw_req *req, const char *method, const char *url
         const char *content_type, const void *body, size_t size)
 {
     size_t url_len = strlen(url);
-    if (url_len >= NW_REQ_URL_MAX || strncasecmp(url, "http://", 7) != 0)
+    if (url_len >= NW_REQ_MAX_URL || strncasecmp(url, "http://", 7) != 0)
         return -1;
 
     const char *p = url + 7;
@@ -611,7 +611,7 @@ static nw_req *request(const char *method, const char *url, const char *content_
         req_free(req);
         return NULL;
     }
-    req->deadline = monotonic() + (timeout > 0 ? timeout : NW_REQ_TIMEOUT);
+    req->deadline = monotonic() + (timeout > 0 ? timeout : NW_REQ_DEFAULT_TIMEOUT);
     req->callback = callback;
     req->privdata = privdata;
     req->stopping = &stopping;
@@ -667,7 +667,7 @@ int nw_req_url_encode(const void *data, size_t size, char *dest, size_t dest_siz
     return len;
 }
 
-const char *nw_req_get_header(nw_req_rsp *rsp, const char *name)
+char *nw_req_get_header(nw_req_response *rsp, const char *name)
 {
     for (uint32_t i = 0; i < rsp->header_count; ++i) {
         if (strcasecmp(rsp->headers[i].name, name) == 0)

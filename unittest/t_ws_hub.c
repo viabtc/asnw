@@ -14,7 +14,7 @@
 # define CLIENTS  9
 # define ROUNDS   30
 
-static nw_addr_t addr;
+static nw_addr addr;
 # include "ws_client.h"
 
 static nw_ws_svr *front;

@@ -77,7 +77,7 @@ static void on_request(nw_ses *ses, nw_http_request *req)
 static int calls, last_error, last_status;
 static char last_body[256], last_message[256];
 
-static void on_response(int error, nw_req_rsp *rsp, void *privdata)
+static void on_response(int error, nw_req_response *rsp, void *privdata)
 {
     calls++;
     last_error = error;

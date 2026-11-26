@@ -173,7 +173,7 @@ static void worker_handle(struct nw_hub_worker *worker, struct event *event)
 
     switch (event->type) {
     case EVENT_ADD_FD:
-        if (!worker->exit && nw_svr_add_accepted_fd(svr, event->bind_index, event->fd, (nw_addr_t *)event->data) == 0) {
+        if (!worker->exit && nw_svr_add_accepted_fd(svr, event->bind_index, event->fd, (nw_addr *)event->data) == 0) {
             /* the connection has it now */
             event->fd = -1;
         }
@@ -232,8 +232,8 @@ static void worker_svr_release(struct nw_hub_worker *worker)
     nw_hub *hub = worker->hub;
     nw_svr *svr = worker->svr;
     worker->svr = NULL;
-    if (hub->type.svr_create) {
-        hub->type.svr_release(hub, worker->index, svr);
+    if (hub->type.on_svr_create) {
+        hub->type.on_svr_release(hub, worker->index, svr);
     } else {
         nw_svr_release(svr);
     }
@@ -263,8 +263,8 @@ static void *worker_main(void *arg)
      */
     nw_loop_init();
     worker->loop = nw_default_loop;
-    if (hub->type.svr_create) {
-        worker->svr = hub->type.svr_create(hub, worker->index);
+    if (hub->type.on_svr_create) {
+        worker->svr = hub->type.on_svr_create(hub, worker->index);
     } else {
         worker->svr = nw_svr_create(&hub->svr_cfg, &hub->type.svr, hub->privdata);
     }
@@ -314,15 +314,15 @@ static void *worker_main(void *arg)
 }
 
 /* on the hub thread: a connection was accepted, pass it on */
-static int on_accept(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
+static int on_accept(nw_ses *ses, int sockfd, nw_addr *peer_addr)
 {
     nw_hub *hub = nw_hub_of(ses);
-    struct event *event = event_new(EVENT_ADD_FD, sizeof(nw_addr_t));
+    struct event *event = event_new(EVENT_ADD_FD, sizeof(nw_addr));
     if (event == NULL)
         return -1;
     event->fd = sockfd;
     event->bind_index = ses - hub->acceptor->svr_list;
-    memcpy(event->data, peer_addr, sizeof(nw_addr_t));
+    memcpy(event->data, peer_addr, sizeof(nw_addr));
 
     struct nw_hub_worker *worker = &hub->workers[hub->turn++ % hub->thread_count];
     if (worker_post(worker, event) < 0) {
@@ -385,7 +385,7 @@ nw_hub *nw_hub_create(nw_hub_cfg *cfg, nw_hub_type *type, void *privdata)
         return NULL;
     if (cfg->svr.bind_count == 0)
         return NULL;
-    if (type->svr_create && !type->svr_release)
+    if (type->on_svr_create && !type->on_svr_release)
         return NULL;
     for (uint32_t i = 0; i < cfg->svr.bind_count; ++i) {
         if (cfg->svr.bind_arr[i].sock_type == SOCK_DGRAM)

@@ -24,7 +24,7 @@
  *
  * every entry carries data_size bytes of your data and is found by its id
  * through a nw_dict. not thread safe, use it from the loop thread.
- * see test/test_state.c.
+ * see example/state.c.
  */
 
 typedef struct nw_state_entry {
@@ -80,39 +80,39 @@ nw_state *nw_state_create(nw_state_type *type, uint32_t data_size);
  * id 0: an unused id is picked for you, read it from entry->id.
  * id not 0: use that id; fails if the table already has it.
  * return the new entry with zeroed data, or NULL on failure */
-nw_state_entry *nw_state_add(nw_state *context, double timeout, uint32_t id);
+nw_state_entry *nw_state_add(nw_state *state, double timeout, uint32_t id);
 
 /* find an entry by id. return NULL if there is none: never added, deleted,
  * or timed out already */
-nw_state_entry *nw_state_get(nw_state *context, uint32_t id);
+nw_state_entry *nw_state_get(nw_state *state, uint32_t id);
 
 /* restart the timeout of an entry: it now times out `timeout` seconds from
  * this call. return 0, or -1 if there is no such entry */
-int nw_state_mod(nw_state *context, uint32_t id, double timeout);
+int nw_state_mod(nw_state *state, uint32_t id, double timeout);
 
 /* delete an entry: its timeout is cancelled, on_release is called and the
  * entry is freed. return 0, or -1 if there is no such entry */
-int nw_state_del(nw_state *context, uint32_t id);
+int nw_state_del(nw_state *state, uint32_t id);
 
 /* number of entries currently in the table */
-size_t nw_state_count(nw_state *context);
+size_t nw_state_count(nw_state *state);
 
 /* free the table and every entry left in it (on_release is called for
  * each, on_timeout is not) */
-void nw_state_release(nw_state *context);
+void nw_state_release(nw_state *state);
 
 /*
  * walk over all entries, in no particular order:
  *
  *   nw_state_iterator iter;
  *   nw_state_entry *entry;
- *   nw_state_iter_init(&iter, context);
+ *   nw_state_iter_init(&iter, state);
  *   while ((entry = nw_state_next(&iter)) != NULL) { ... }
  *
  * deleting the entry just returned is allowed; adding entries or deleting
  * other ones invalidates the iterator
  */
-void nw_state_iter_init(nw_state_iterator *iter, nw_state *context);
+void nw_state_iter_init(nw_state_iterator *iter, nw_state *state);
 /* the next entry, NULL when all were visited */
 nw_state_entry *nw_state_next(nw_state_iterator *iter);
 

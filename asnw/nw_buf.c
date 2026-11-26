@@ -19,10 +19,10 @@ size_t nw_buf_avail(nw_buf *buf)
     return buf->size - buf->wpos;
 }
 
-size_t nw_buf_write(nw_buf *buf, const void *data, size_t len)
+size_t nw_buf_write(nw_buf *buf, const void *data, size_t size)
 {
     size_t available = buf->size - buf->wpos;
-    size_t wlen = len > available ? available : len;
+    size_t wlen = size > available ? available : size;
     memcpy(buf->data + buf->wpos, data, wlen);
     buf->wpos += wlen;
     return wlen;
@@ -126,10 +126,10 @@ nw_buf_list *nw_buf_list_create(nw_buf_pool *pool, uint32_t limit)
     return list;
 }
 
-size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t len)
+size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t size)
 {
     const void *pos = data;
-    size_t left = len;
+    size_t left = size;
 
     if (list->tail && nw_buf_avail(list->tail)) {
         size_t ret = nw_buf_write(list->tail, pos, left);
@@ -139,10 +139,10 @@ size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t len)
 
     while (left) {
         if (list->limit && list->count >= list->limit)
-            return len - left;
+            return size - left;
         nw_buf *buf = nw_buf_alloc(list->pool);
         if (buf == NULL)
-            return len - left;
+            return size - left;
         if (list->head == NULL)
             list->head = buf;
         if (list->tail != NULL)
@@ -154,21 +154,21 @@ size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t len)
         pos += ret;
     }
 
-    return len;
+    return size;
 }
 
-size_t nw_buf_list_append(nw_buf_list *list, const void *data, size_t len)
+size_t nw_buf_list_append(nw_buf_list *list, const void *data, size_t size)
 {
     if (list->limit && list->count >= list->limit)
         return 0;
     nw_buf *buf = nw_buf_alloc(list->pool);
     if (buf == NULL)
         return 0;
-    if (len > buf->size) {
+    if (size > buf->size) {
         nw_buf_free(list->pool, buf);
         return 0;
     }
-    nw_buf_write(buf, data, len);
+    nw_buf_write(buf, data, size);
     if (list->head == NULL)
         list->head = buf;
     if (list->tail != NULL)
@@ -176,7 +176,7 @@ size_t nw_buf_list_append(nw_buf_list *list, const void *data, size_t len)
     list->tail = buf;
     list->count++;
 
-    return len;
+    return size;
 }
 
 void nw_buf_list_shift(nw_buf_list *list)

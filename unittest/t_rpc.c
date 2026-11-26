@@ -80,7 +80,7 @@ int main(void)
     snprintf(addr_str, sizeof(addr_str), "tcp@127.0.0.1:%d", ut_svr_port(svr->raw_svr, 0));
     rpc_clt_cfg ccfg;
     memset(&ccfg, 0, sizeof(ccfg));
-    nw_addr_t addr;
+    nw_addr addr;
     CHECK_EQ(nw_sock_cfg_parse(addr_str, &addr, &ccfg.sock_type), 0);
     ccfg.name = "test";
     ccfg.addr_count = 1;

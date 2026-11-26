@@ -26,7 +26,7 @@ typedef struct rpc_clt_cfg {
     /* number of entries in addr_arr, at least 1 */
     uint32_t addr_count;
     /* the server addresses, all of the same sock_type. copied */
-    nw_addr_t *addr_arr;
+    nw_addr *addr_arr;
     /* SOCK_STREAM, SOCK_DGRAM or SOCK_SEQPACKET */
     int sock_type;
     /* see nw_clt_cfg */
@@ -54,7 +54,7 @@ typedef struct rpc_clt {
     nw_clt *raw_clt;
     uint32_t addr_count;
     uint32_t curr_index;
-    nw_addr_t *addr_arr;
+    nw_addr *addr_arr;
     nw_timer timer;
     double last_heartbeat;
     void (*on_recv_pkg)(nw_ses *ses, rpc_pkg *pkg);

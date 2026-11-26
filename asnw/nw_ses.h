@@ -48,10 +48,10 @@ typedef struct nw_ses {
     /* the other end. connection: the remote address. nw_clt: the configured
      * server. dgram session of a nw_svr: the sender of the datagram being
      * processed, it changes with every datagram */
-    nw_addr_t peer_addr;
+    nw_addr peer_addr;
     /* the local address. connections of a nw_svr share the pointer of the
      * session that accepted them */
-    nw_addr_t *host_addr;
+    nw_addr *host_addr;
     /* data received and not consumed yet, NULL when there is none */
     nw_buf *read_buf;
     /* data accepted by nw_ses_send and not written to the socket yet */
@@ -88,7 +88,7 @@ typedef struct nw_ses {
     bool resume_decode;
 
     /* event handlers, installed by nw_svr / nw_clt */
-    int  (*on_accept)(struct nw_ses *ses, int sockfd, nw_addr_t *peer_addr);
+    int  (*on_accept)(struct nw_ses *ses, int sockfd, nw_addr *peer_addr);
     int  (*decode_pkg)(struct nw_ses *ses, void *data, size_t max);
     void (*on_connect)(struct nw_ses *ses, bool result);
     void (*on_recv_pkg)(struct nw_ses *ses, void *data, size_t size);
@@ -184,13 +184,13 @@ void nw_ses_resume_read(nw_ses *ses);
 int nw_ses_init(nw_ses *ses, struct ev_loop *loop, nw_buf_pool *pool, uint32_t buf_limit, int ses_type);
 /* bind to addr. for a unix address a stale socket file at the path is
  * removed first and the new one is made accessible to everybody (0777) */
-int nw_ses_bind(nw_ses *ses, nw_addr_t *addr);
+int nw_ses_bind(nw_ses *ses, nw_addr *addr);
 /* listen and start accepting, on_accept is called for every new connection */
 int nw_ses_listen(nw_ses *ses, int backlog);
 /* start a non blocking connect. return 0 if it succeeded (on_connect(true)
  * was called) or is in progress (on_connect is called later). return -1 if
  * it failed on the spot, errno is set and on_connect is NOT called */
-int nw_ses_connect(nw_ses *ses, nw_addr_t *addr);
+int nw_ses_connect(nw_ses *ses, nw_addr *addr);
 /* start handling events: accept for a listening session, read otherwise */
 int nw_ses_start(nw_ses *ses);
 /* stop handling events, the socket stays open */

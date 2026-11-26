@@ -174,7 +174,7 @@ struct result {
     pthread_t thread;
 };
 
-static void on_response(int error, nw_req_rsp *rsp, void *privdata)
+static void on_response(int error, nw_req_response *rsp, void *privdata)
 {
     struct result *r = privdata;
     r->calls++;
@@ -271,7 +271,7 @@ static int listen_on_loopback(int *port)
 static int chain_left;
 static struct result chain_result;
 
-static void on_chain(int error, nw_req_rsp *rsp, void *privdata)
+static void on_chain(int error, nw_req_response *rsp, void *privdata)
 {
     CHECK_EQ(error, 0);
     CHECK_EQ(rsp->status, 200);
@@ -287,7 +287,7 @@ static void on_chain(int error, nw_req_rsp *rsp, void *privdata)
 /* another loop thread has request threads of its own, gone with its loop */
 static int other_done;
 
-static void on_other_response(int error, nw_req_rsp *rsp, void *privdata)
+static void on_other_response(int error, nw_req_response *rsp, void *privdata)
 {
     on_response(error, rsp, privdata);
     nw_loop_break();
@@ -351,10 +351,10 @@ int main(void)
             exit(1);
         }
     }
-    char *long_url = malloc(NW_REQ_URL_MAX + 16);
-    memset(long_url, 'a', NW_REQ_URL_MAX + 8);
+    char *long_url = malloc(NW_REQ_MAX_URL + 16);
+    memset(long_url, 'a', NW_REQ_MAX_URL + 8);
     memcpy(long_url, "http://host/", 12);
-    long_url[NW_REQ_URL_MAX] = '\0';
+    long_url[NW_REQ_MAX_URL] = '\0';
     CHECK(nw_req_get(long_url, 1.0, on_response, &r) == NULL);
     free(long_url);
 

@@ -25,7 +25,7 @@
  *   nw_ws_svr_create -> nw_ws_svr_start -> nw_loop_run
  *   messages arrive in on_message, send with nw_ws_send_text and friends
  *
- * see test/ws_server.c.
+ * see example/ws_server.c.
  *
  * the life of a connection
  *
@@ -109,10 +109,10 @@ typedef struct nw_ws_svr_cfg {
     /* seconds a connection may stay silent before it is closed. anything
      * the client sends counts, including the pong to our ping.
      * 0 for the default, 60 */
-    double keep_alive_timeout;
+    double idle_timeout;
     /* send a ping to a connection that has been silent for this many
      * seconds, so that a live client answers and is not timed out. use a
-     * value well below keep_alive_timeout. 0 to send no pings: clients
+     * value well below idle_timeout. 0 to send no pings: clients
      * then have to send something by themselves often enough */
     double ping_interval;
     /* optional
@@ -217,7 +217,7 @@ struct nw_ws_svr {
     /* the privdata given to nw_ws_svr_create */
     void *privdata;
     uint32_t max_message_size;
-    double keep_alive_timeout;
+    double idle_timeout;
     double ping_interval;
     char *protocol;
     char *origin;

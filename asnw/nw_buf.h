@@ -85,9 +85,9 @@ typedef struct nw_cache {
 size_t nw_buf_size(nw_buf *buf);
 /* bytes that can still be written: size - wpos */
 size_t nw_buf_avail(nw_buf *buf);
-/* copy data to the end of the buf. return the bytes copied, less than len
+/* copy data to the end of the buf. return the bytes copied, less than size
  * if the buf is full */
-size_t nw_buf_write(nw_buf *buf, const void *data, size_t len);
+size_t nw_buf_write(nw_buf *buf, const void *data, size_t size);
 /* move the data to the start of the buf so that the space of the consumed
  * part can be written again */
 void nw_buf_shift(nw_buf *buf);
@@ -111,13 +111,13 @@ void nw_buf_pool_release(nw_buf_pool *pool);
  * (0: no limit). NULL if out of memory */
 nw_buf_list *nw_buf_list_create(nw_buf_pool *pool, uint32_t limit);
 /* stream write: fill the tail buf, then add bufs as needed, data may be
- * split across bufs. return the bytes written, less than len if the limit
+ * split across bufs. return the bytes written, less than size if the limit
  * is reached or memory runs out (what was written stays in the list) */
-size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t len);
-/* packet write: put data in a new buf of its own, never split. return len,
- * or 0 if len is bigger than the buf size, the limit is reached or memory
+size_t nw_buf_list_write(nw_buf_list *list, const void *data, size_t size);
+/* packet write: put data in a new buf of its own, never split. return size,
+ * or 0 if size is bigger than the buf size, the limit is reached or memory
  * runs out */
-size_t nw_buf_list_append(nw_buf_list *list, const void *data, size_t len);
+size_t nw_buf_list_append(nw_buf_list *list, const void *data, size_t size);
 /* remove the head buf, if any, and give it back to the pool */
 void nw_buf_list_shift(nw_buf_list *list);
 /* free the list and give all its bufs back to the pool */

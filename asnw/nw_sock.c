@@ -13,7 +13,7 @@
 
 # include "nw_sock.h"
 
-char *nw_sock_human_addr(nw_addr_t *addr)
+char *nw_sock_human_addr(nw_addr *addr)
 {
     static __thread char str[NW_HUMAN_ADDR_SIZE];
     char ip[INET6_ADDRSTRLEN];
@@ -38,7 +38,7 @@ char *nw_sock_human_addr(nw_addr_t *addr)
     return str;
 }
 
-char *nw_sock_human_addr_s(nw_addr_t *addr, char *dest)
+char *nw_sock_human_addr_s(nw_addr *addr, char *dest)
 {
     char ip[INET6_ADDRSTRLEN];
 
@@ -62,7 +62,7 @@ char *nw_sock_human_addr_s(nw_addr_t *addr, char *dest)
     return dest;
 }
 
-char *nw_sock_ip(nw_addr_t *addr)
+char *nw_sock_ip(nw_addr *addr)
 {
     static __thread char ip[INET6_ADDRSTRLEN];
     switch (addr->family) {
@@ -79,7 +79,7 @@ char *nw_sock_ip(nw_addr_t *addr)
     return ip;
 }
 
-char *nw_sock_ip_s(nw_addr_t *addr, char *ip)
+char *nw_sock_ip_s(nw_addr *addr, char *ip)
 {
     switch (addr->family) {
     case AF_INET:
@@ -95,14 +95,14 @@ char *nw_sock_ip_s(nw_addr_t *addr, char *ip)
     return ip;
 }
 
-int nw_sock_set_mode(nw_addr_t *addr, mode_t mode)
+int nw_sock_set_mode(nw_addr *addr, mode_t mode)
 {
     if (addr->family != AF_UNIX)
         return 0;
     return chmod(addr->un.sun_path, mode);
 }
 
-int nw_sock_peer_addr(int sockfd, nw_addr_t *addr)
+int nw_sock_peer_addr(int sockfd, nw_addr *addr)
 {
     addr->addrlen = sizeof(addr->un);
     if (getpeername(sockfd, NW_SOCKADDR(addr), &addr->addrlen) == 0) {
@@ -112,7 +112,7 @@ int nw_sock_peer_addr(int sockfd, nw_addr_t *addr)
     return -1;
 }
 
-int nw_sock_host_addr(int sockfd, nw_addr_t *addr)
+int nw_sock_host_addr(int sockfd, nw_addr *addr)
 {
     addr->addrlen = sizeof(addr->un);
     if (getsockname(sockfd, NW_SOCKADDR(addr), &addr->addrlen) == 0) {
@@ -122,7 +122,7 @@ int nw_sock_host_addr(int sockfd, nw_addr_t *addr)
     return -1;
 }
 
-static int nw_sock_addr_fill_inet(nw_addr_t *addr, const char *host, const char *port)
+static int nw_sock_addr_fill_inet(nw_addr *addr, const char *host, const char *port)
 {
     /* the port must be a plain decimal number in 0..65535 */
     if (*port < '0' || *port > '9')
@@ -132,7 +132,7 @@ static int nw_sock_addr_fill_inet(nw_addr_t *addr, const char *host, const char 
     if (*end != '\0' || port_num > 65535)
         return -1;
 
-    memset(addr, 0, sizeof(nw_addr_t));
+    memset(addr, 0, sizeof(nw_addr));
     if (strchr(host, ':') == NULL) {
         addr->in.sin_family = AF_INET;
         if (inet_pton(addr->in.sin_family, host, &addr->in.sin_addr) <= 0) {
@@ -154,13 +154,13 @@ static int nw_sock_addr_fill_inet(nw_addr_t *addr, const char *host, const char 
     return 0;
 }
 
-static int nw_sock_addr_fill_unix(nw_addr_t *addr, const char *unix_path)
+static int nw_sock_addr_fill_unix(nw_addr *addr, const char *unix_path)
 {
     size_t pathlen = strlen(unix_path);
     if (pathlen == 0 || pathlen >= sizeof(addr->un.sun_path)) {
         return -1;
     }
-    memset(addr, 0, sizeof(nw_addr_t));
+    memset(addr, 0, sizeof(nw_addr));
     addr->un.sun_family = AF_UNIX;
     strcpy(addr->un.sun_path, unix_path);
     addr->family = addr->un.sun_family;
@@ -169,7 +169,7 @@ static int nw_sock_addr_fill_unix(nw_addr_t *addr, const char *unix_path)
     return 0;
 }
 
-int nw_sock_cfg_parse(const char *cfg, nw_addr_t *addr, int *sock_type)
+int nw_sock_cfg_parse(const char *cfg, nw_addr *addr, int *sock_type)
 {
     char *s = strdup(cfg);
     if (s == NULL)

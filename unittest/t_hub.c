@@ -443,7 +443,7 @@ int main(void)
     hub = create(2, binds, 1, 0.2, 0);
     CHECK(hub != NULL);
     CHECK_EQ(nw_hub_start(hub), 0);
-    nw_addr_t addr;
+    nw_addr addr;
     CHECK_EQ(nw_sock_host_addr(hub->acceptor->svr_list[0].sockfd, &addr), 0);
     int fds[4];
     for (int i = 0; i < 4; ++i) {

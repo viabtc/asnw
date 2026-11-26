@@ -1,7 +1,7 @@
 /*
  * A websocket test client on a plain socket, shared by the nw_ws tests.
  * Before including this, define BIG_SIZE (the biggest message a test
- * receives) and a `static nw_addr_t addr` with the address of the server.
+ * receives) and a `static nw_addr addr` with the address of the server.
  * The client runs the loop of the calling thread while it waits.
  */
 # ifndef _UT_WS_CLIENT_H_

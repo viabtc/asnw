@@ -13,8 +13,8 @@
 # include "nw_job.h"
 # include "nw_evt.h"
 
-struct nw_dns_req {
-    char host[NW_DNS_HOST_MAX];
+struct nw_dns_query {
+    char name[NW_DNS_MAX_NAME];
     uint16_t port;
     nw_dns_callback callback;
     void *privdata;
@@ -25,7 +25,7 @@ struct nw_dns_req {
     int error;
     int sys_errno;
     uint32_t count;
-    nw_addr_t addrs[NW_DNS_ADDR_MAX];
+    nw_addr addrs[NW_DNS_MAX_ADDRS];
 };
 
 /* the resolver threads of the calling loop thread */
@@ -34,9 +34,9 @@ static __thread nw_job *resolver;
 /* on a resolver thread */
 static void on_job(nw_job_entry *entry, void *privdata)
 {
-    struct nw_dns_req *req = entry->request;
+    struct nw_dns_query *query = entry->request;
     char port[8];
-    snprintf(port, sizeof(port), "%u", req->port);
+    snprintf(port, sizeof(port), "%u", query->port);
 
     struct addrinfo hints;
     struct addrinfo *list = NULL;
@@ -44,14 +44,14 @@ static void on_job(nw_job_entry *entry, void *privdata)
     hints.ai_family = AF_UNSPEC;
     /* one entry per address, not one per socket type */
     hints.ai_socktype = SOCK_STREAM;
-    req->error = getaddrinfo(req->host, port, &hints, &list);
-    if (req->error != 0) {
-        req->sys_errno = errno;
+    query->error = getaddrinfo(query->name, port, &hints, &list);
+    if (query->error != 0) {
+        query->sys_errno = errno;
         return;
     }
 
-    for (struct addrinfo *ai = list; ai && req->count < NW_DNS_ADDR_MAX; ai = ai->ai_next) {
-        nw_addr_t *addr = &req->addrs[req->count];
+    for (struct addrinfo *ai = list; ai && query->count < NW_DNS_MAX_ADDRS; ai = ai->ai_next) {
+        nw_addr *addr = &query->addrs[query->count];
         if (ai->ai_family == AF_INET && ai->ai_addrlen == sizeof(addr->in)) {
             memcpy(&addr->in, ai->ai_addr, sizeof(addr->in));
         } else if (ai->ai_family == AF_INET6 && ai->ai_addrlen == sizeof(addr->in6)) {
@@ -61,22 +61,22 @@ static void on_job(nw_job_entry *entry, void *privdata)
         }
         addr->family = ai->ai_family;
         addr->addrlen = ai->ai_addrlen;
-        req->count++;
+        query->count++;
     }
     freeaddrinfo(list);
-    if (req->count == 0)
-        req->error = EAI_NONAME;
+    if (query->count == 0)
+        query->error = EAI_NONAME;
 }
 
 /* back on the loop thread */
 static void on_finish(nw_job_entry *entry)
 {
-    struct nw_dns_req *req = entry->request;
-    if (req->cancelled)
+    struct nw_dns_query *query = entry->request;
+    if (query->cancelled)
         return;
-    if (req->error == EAI_SYSTEM)
-        errno = req->sys_errno;
-    req->callback(req->error, req->error ? NULL : req->addrs, req->count, req->privdata);
+    if (query->error == EAI_SYSTEM)
+        errno = query->sys_errno;
+    query->callback(query->error, query->error ? NULL : query->addrs, query->count, query->privdata);
 }
 
 /* answered, cancelled or never run: the request ends here */
@@ -113,32 +113,32 @@ static int resolver_init(void)
     return 0;
 }
 
-nw_dns_req *nw_dns_resolve(const char *host, uint16_t port, nw_dns_callback callback, void *privdata)
+nw_dns_query *nw_dns_resolve(const char *name, uint16_t port, nw_dns_callback callback, void *privdata)
 {
-    size_t len = strlen(host);
-    if (len == 0 || len >= NW_DNS_HOST_MAX)
+    size_t len = strlen(name);
+    if (len == 0 || len >= NW_DNS_MAX_NAME)
         return NULL;
     if (resolver_init() < 0)
         return NULL;
 
-    struct nw_dns_req *req = malloc(sizeof(struct nw_dns_req));
-    if (req == NULL)
+    struct nw_dns_query *query = malloc(sizeof(struct nw_dns_query));
+    if (query == NULL)
         return NULL;
-    memset(req, 0, sizeof(struct nw_dns_req));
-    memcpy(req->host, host, len);
-    req->port = port;
-    req->callback = callback;
-    req->privdata = privdata;
-    if (nw_job_add(resolver, 0, req) < 0) {
-        free(req);
+    memset(query, 0, sizeof(struct nw_dns_query));
+    memcpy(query->name, name, len);
+    query->port = port;
+    query->callback = callback;
+    query->privdata = privdata;
+    if (nw_job_add(resolver, 0, query) < 0) {
+        free(query);
         return NULL;
     }
-    return req;
+    return query;
 }
 
-void nw_dns_cancel(nw_dns_req *req)
+void nw_dns_cancel(nw_dns_query *query)
 {
-    req->cancelled = true;
+    query->cancelled = true;
 }
 
 const char *nw_dns_strerror(int error)

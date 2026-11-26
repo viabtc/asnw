@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
     cfg.bind_count = bind_count;
     cfg.bind_arr = bind_arr;
     cfg.buf_limit = 16;
-    cfg.keep_alive_timeout = 60;
+    cfg.idle_timeout = 60;
     cfg.ping_interval = 20;
 
     nw_ws_svr_type type;

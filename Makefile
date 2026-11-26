@@ -41,7 +41,7 @@ RPC_SRC := wrapper/ut_rpc.c wrapper/ut_crc32.c wrapper/ut_rpc_clt.c wrapper/ut_r
 RPC_OBJ := $(patsubst %.c,$(B)/%.o,$(RPC_SRC))
 RPC_LIB := $(B)/libutrpc.a
 
-EXAMPLE_SRC := $(wildcard test/*.c) $(wildcard c1000k/*.c) wrapper/test_rpc_svr.c wrapper/test_rpc_clt.c
+EXAMPLE_SRC := $(wildcard example/*.c) $(wildcard c1000k/*.c) wrapper/test_rpc_svr.c wrapper/test_rpc_clt.c
 EXAMPLES    := $(patsubst %.c,$(B)/%,$(EXAMPLE_SRC))
 
 UT_SRC := $(wildcard unittest/*.c)

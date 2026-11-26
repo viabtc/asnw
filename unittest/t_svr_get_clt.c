@@ -16,7 +16,7 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
     last_ses = ses;
 }
 
-static int tcp_connect(nw_addr_t *addr)
+static int tcp_connect(nw_addr *addr)
 {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     CHECK(fd >= 0);
@@ -31,7 +31,7 @@ int main(void)
     type.decode_pkg = ut_line_decode;
     type.on_recv_pkg = on_recv_pkg;
     svr = ut_svr("tcp@127.0.0.1:0", &type, 1024, NULL);
-    nw_addr_t addr;
+    nw_addr addr;
     CHECK_EQ(nw_sock_host_addr(svr->svr_list[0].sockfd, &addr), 0);
 
     CHECK(nw_svr_get_clt(svr, 0) == NULL);

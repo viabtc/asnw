@@ -37,7 +37,7 @@ static int bound_client(const char *name, struct sockaddr_un *un)
     return fd;
 }
 
-static bool round_trip(int fd, nw_addr_t *svr_addr)
+static bool round_trip(int fd, nw_addr *svr_addr)
 {
     char buf[16];
     CHECK_EQ(sendto(fd, "ping\n", 5, 0, NW_SOCKADDR(svr_addr), svr_addr->addrlen), 5);
@@ -56,7 +56,7 @@ int main(void)
     st.on_error_msg = on_error_msg;
     ut_svr(cfg, &st, 1024, NULL);
 
-    nw_addr_t svr_addr;
+    nw_addr svr_addr;
     int type;
     CHECK_EQ(nw_sock_cfg_parse(cfg, &svr_addr, &type), 0);
 

@@ -46,7 +46,7 @@ int main(void)
     char dead[64], alive[64];
     snprintf(dead, sizeof(dead), "tcp@127.0.0.1:%d", ut_free_port(SOCK_STREAM));
     snprintf(alive, sizeof(alive), "tcp@127.0.0.1:%d", ut_svr_port(svr->raw_svr, 0));
-    nw_addr_t addrs[2];
+    nw_addr addrs[2];
     rpc_clt_cfg ccfg;
     memset(&ccfg, 0, sizeof(ccfg));
     CHECK_EQ(nw_sock_cfg_parse(dead, &addrs[0], &ccfg.sock_type), 0);

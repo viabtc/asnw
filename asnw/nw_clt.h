@@ -26,7 +26,7 @@
  *   nw_clt_create -> nw_clt_start -> nw_loop_run ... -> nw_clt_release
  *   send with nw_ses_send(&clt->ses, data, size)
  *
- * all callbacks run on the loop thread. see test/test_clt.c.
+ * all callbacks run on the loop thread. see example/ping_clt.c.
  *
  * a server given by name
  *
@@ -74,15 +74,15 @@
 
 typedef struct nw_clt_cfg {
     /* the server address */
-    nw_addr_t addr;
+    nw_addr addr;
     /* SOCK_STREAM, SOCK_DGRAM or SOCK_SEQPACKET */
     int sock_type;
     /* optional
      *
-     * the server by name: if host is not empty, addr is not used and the
-     * client connects to what host resolves to, on this port. sock_type
+     * the server by name: if name is not empty, addr is not used and the
+     * client connects to what name resolves to, on this port. sock_type
      * must be SOCK_STREAM or SOCK_DGRAM. nw_clt_cfg_parse fills these */
-    char host[NW_DNS_HOST_MAX];
+    char name[NW_DNS_MAX_NAME];
     uint16_t port;
     /* must not be 0
      *
@@ -187,10 +187,10 @@ typedef struct nw_clt {
     bool local_path_bound;
     /* a server given by name: the name, the lookup in progress if any, and
      * the addresses it gave, of which addr_next is the next one to try */
-    char *host;
+    char *name;
     uint16_t port;
-    nw_dns_req *dns_req;
-    nw_addr_t *addrs;
+    nw_dns_query *dns_query;
+    nw_addr *addrs;
     uint32_t addr_count;
     uint32_t addr_next;
     /* look the name up again before the next connect */
@@ -208,11 +208,11 @@ typedef struct nw_clt {
  * and for tcp and udp also a host name in place of the ip:
  *
  *   tcp@10.0.0.1:5432       -> cfg->addr
- *   tcp@db.local:5432       -> cfg->host, cfg->port
+ *   tcp@db.local:5432       -> cfg->name, cfg->port
  *   stream@/tmp/db.sock     -> cfg->addr
  *
  * the other fields of cfg are left alone. return 0, the errors of
- * nw_sock_cfg_parse, or -6 if the host is not a possible name (too long,
+ * nw_sock_cfg_parse, or -6 if it is not a possible name (too long,
  * or other characters than letters, digits, '-', '_' and '.').
  */
 int nw_clt_cfg_parse(const char *str, nw_clt_cfg *cfg);

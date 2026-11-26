@@ -31,31 +31,31 @@
 
 # define NW_DNS_THREADS     2
 /* longest host name, with the terminating 0 */
-# define NW_DNS_HOST_MAX    256
+# define NW_DNS_MAX_NAME    256
 /* a name with more addresses than this gets the first ones */
-# define NW_DNS_ADDR_MAX    16
+# define NW_DNS_MAX_ADDRS    16
 
-typedef struct nw_dns_req nw_dns_req;
+typedef struct nw_dns_query nw_dns_query;
 
 /*
  * the result of nw_dns_resolve, called once on the loop thread.
  * error is 0 and addrs holds count (at least 1) addresses, in the order
  * to try them, each with the port asked for; or error is not 0, see
  * nw_dns_strerror, and there are none.
- * addrs is only valid during the call, and the request is over: don't
+ * addrs is only valid during the call, and the query is over: don't
  * cancel it any more.
  */
-typedef void (*nw_dns_callback)(int error, nw_addr_t *addrs, uint32_t count, void *privdata);
+typedef void (*nw_dns_callback)(int error, nw_addr *addrs, uint32_t count, void *privdata);
 
-/* resolve host, a name or a numeric ipv4 / ipv6 address. port is put into
- * the addresses. return the request, for nw_dns_cancel, or NULL if host is
+/* resolve name, a host name or a numeric ipv4 / ipv6 address. port is put
+ * into the addresses. return the query, for nw_dns_cancel, or NULL if name is
  * empty or too long or memory or threads can't be had; then callback is
  * not called */
-nw_dns_req *nw_dns_resolve(const char *host, uint16_t port, nw_dns_callback callback, void *privdata);
+nw_dns_query *nw_dns_resolve(const char *name, uint16_t port, nw_dns_callback callback, void *privdata);
 
-/* forget a request that has not been answered yet: its callback will not
- * be called. to be called on the thread that made the request */
-void nw_dns_cancel(nw_dns_req *req);
+/* forget a query that has not been answered yet: its callback will not
+ * be called. to be called on the thread that made the query */
+void nw_dns_cancel(nw_dns_query *query);
 
 /* what an error given to the callback means, for your log */
 const char *nw_dns_strerror(int error);

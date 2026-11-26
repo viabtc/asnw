@@ -106,10 +106,10 @@ static int clt_close(nw_clt *clt)
 {
     nw_timer_stop(&clt->timer);
     clt->connected = false;
-    if (clt->dns_req) {
+    if (clt->dns_query) {
         /* its answer is not wanted any more */
-        nw_dns_cancel(clt->dns_req);
-        clt->dns_req = NULL;
+        nw_dns_cancel(clt->dns_query);
+        clt->dns_query = NULL;
     }
     int ret = nw_ses_close(&clt->ses);
     /* remove the socket file a unix dgram client bound for itself */
@@ -165,7 +165,7 @@ static void close_and_reconnect(nw_clt *clt)
  */
 static bool try_next_addr(nw_clt *clt)
 {
-    if (clt->host == NULL || clt->resolve_again || clt->addr_next >= clt->addr_count)
+    if (clt->name == NULL || clt->resolve_again || clt->addr_next >= clt->addr_count)
         return false;
     clt_close(clt);
     reconnect_later(clt, 0);
@@ -175,18 +175,18 @@ static bool try_next_addr(nw_clt *clt)
 static int connect_to_peer(nw_clt *clt);
 
 /* the answer of nw_dns */
-static void on_resolved(int error, nw_addr_t *addrs, uint32_t count, void *privdata)
+static void on_resolved(int error, nw_addr *addrs, uint32_t count, void *privdata)
 {
     nw_clt *clt = privdata;
-    clt->dns_req = NULL;
+    clt->dns_query = NULL;
     if (error == 0) {
-        nw_addr_t *copy = realloc(clt->addrs, count * sizeof(nw_addr_t));
+        nw_addr *copy = realloc(clt->addrs, count * sizeof(nw_addr));
         if (copy == NULL) {
             /* out of memory: look it up again later */
             reconnect_later(clt, clt->reconnect_timeout);
             return;
         }
-        memcpy(copy, addrs, count * sizeof(nw_addr_t));
+        memcpy(copy, addrs, count * sizeof(nw_addr));
         clt->addrs = copy;
         clt->addr_count = count;
         clt->addr_next = 0;
@@ -194,8 +194,8 @@ static void on_resolved(int error, nw_addr_t *addrs, uint32_t count, void *privd
     } else {
         /* a failed attempt like a connect that failed: say why, tell the
          * application it is over, try again later */
-        char msg[NW_DNS_HOST_MAX + 128];
-        snprintf(msg, sizeof(msg), "resolve %s: %s", clt->host, nw_dns_strerror(error));
+        char msg[NW_DNS_MAX_NAME + 128];
+        snprintf(msg, sizeof(msg), "resolve %s: %s", clt->name, nw_dns_strerror(error));
         if (clt->type.on_error_msg)
             clt->type.on_error_msg(&clt->ses, msg);
         if (clt->ses.sock_type == SOCK_DGRAM) {
@@ -207,7 +207,7 @@ static void on_resolved(int error, nw_addr_t *addrs, uint32_t count, void *privd
         return;
     }
 
-    memcpy(&clt->ses.peer_addr, &clt->addrs[clt->addr_next++], sizeof(nw_addr_t));
+    memcpy(&clt->ses.peer_addr, &clt->addrs[clt->addr_next++], sizeof(nw_addr));
     if (connect_to_peer(clt) < 0)
         reconnect_later(clt, clt->reconnect_timeout);
 }
@@ -256,24 +256,24 @@ static void on_close(nw_ses *ses)
 
 int nw_clt_cfg_parse(const char *str, nw_clt_cfg *cfg)
 {
-    cfg->host[0] = '\0';
+    cfg->name[0] = '\0';
     cfg->port = 0;
     int ret = nw_sock_cfg_parse(str, &cfg->addr, &cfg->sock_type);
     /* -4: tcp or udp, with a port, but what stands before it is no ip */
     if (ret != -4)
         return ret;
 
-    const char *host = strchr(str, '@') + 1;
-    const char *colon = strrchr(host, ':');
-    size_t len = colon - host;
+    const char *name = strchr(str, '@') + 1;
+    const char *colon = strrchr(name, ':');
+    size_t len = colon - name;
     /* an ipv6 address that did not parse stays a bad ip */
-    if (host[0] == '[' || memchr(host, ':', len) != NULL)
+    if (name[0] == '[' || memchr(name, ':', len) != NULL)
         return -4;
-    if (len == 0 || len >= NW_DNS_HOST_MAX)
+    if (len == 0 || len >= NW_DNS_MAX_NAME)
         return -6;
     bool only_digits_and_dots = true;
     for (size_t i = 0; i < len; ++i) {
-        char c = host[i];
+        char c = name[i];
         bool letter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
         bool digit = c >= '0' && c <= '9';
         if (!letter && !digit && c != '-' && c != '_' && c != '.')
@@ -289,8 +289,8 @@ int nw_clt_cfg_parse(const char *str, nw_clt_cfg *cfg)
     if (colon[1] < '0' || colon[1] > '9' || *end != '\0' || port > 65535)
         return -4;
 
-    memcpy(cfg->host, host, len);
-    cfg->host[len] = '\0';
+    memcpy(cfg->name, name, len);
+    cfg->name[len] = '\0';
     cfg->port = port;
     return 0;
 }
@@ -331,21 +331,21 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
         nw_clt_release(clt);
         return NULL;
     }
-    nw_addr_t *host_addr = malloc(sizeof(nw_addr_t));
+    nw_addr *host_addr = malloc(sizeof(nw_addr));
     if (host_addr == NULL) {
         nw_clt_release(clt);
         return NULL;
     }
-    memset(host_addr, 0, sizeof(nw_addr_t));
+    memset(host_addr, 0, sizeof(nw_addr));
     clt->ses.host_addr   = host_addr;
-    if (cfg->host[0]) {
+    if (cfg->name[0]) {
         /* by name: the address comes from nw_dns when the client starts */
         if (cfg->sock_type != SOCK_STREAM && cfg->sock_type != SOCK_DGRAM) {
             nw_clt_release(clt);
             return NULL;
         }
-        clt->host = strdup(cfg->host);
-        if (clt->host == NULL) {
+        clt->name = strdup(cfg->name);
+        if (clt->name == NULL) {
             nw_clt_release(clt);
             return NULL;
         }
@@ -354,7 +354,7 @@ nw_clt *nw_clt_create(nw_clt_cfg *cfg, nw_clt_type *type, void *privdata)
     } else {
         host_addr->family = cfg->addr.family;
         host_addr->addrlen = cfg->addr.addrlen;
-        memcpy(&clt->ses.peer_addr, &cfg->addr, sizeof(nw_addr_t));
+        memcpy(&clt->ses.peer_addr, &cfg->addr, sizeof(nw_addr));
     }
     clt->ses.sockfd      = -1;
     clt->ses.sock_type   = cfg->sock_type;
@@ -377,14 +377,14 @@ int nw_clt_start(nw_clt *clt)
      * any pending reconnect or lookup are dropped */
     clt_close(clt);
 
-    if (clt->host) {
+    if (clt->name) {
         if (clt->resolve_again || clt->addr_next >= clt->addr_count) {
             /* connecting goes on in on_resolved */
             clt->on_connect_called = false;
-            clt->dns_req = nw_dns_resolve(clt->host, clt->port, on_resolved, clt);
-            return clt->dns_req ? 0 : -1;
+            clt->dns_query = nw_dns_resolve(clt->name, clt->port, on_resolved, clt);
+            return clt->dns_query ? 0 : -1;
         }
-        memcpy(&clt->ses.peer_addr, &clt->addrs[clt->addr_next++], sizeof(nw_addr_t));
+        memcpy(&clt->ses.peer_addr, &clt->addrs[clt->addr_next++], sizeof(nw_addr));
     }
     return connect_to_peer(clt);
 }
@@ -401,8 +401,8 @@ static int connect_to_peer(nw_clt *clt)
     clt->ses.host_addr->family = clt->ses.peer_addr.family;
     clt->ses.host_addr->addrlen = clt->ses.peer_addr.addrlen;
     if (clt->ses.peer_addr.family == AF_UNIX && clt->ses.sock_type == SOCK_DGRAM) {
-        nw_addr_t *host_addr = clt->ses.host_addr;
-        memset(host_addr, 0, sizeof(nw_addr_t));
+        nw_addr *host_addr = clt->ses.host_addr;
+        memset(host_addr, 0, sizeof(nw_addr));
         host_addr->family = AF_UNIX;
         host_addr->addrlen = sizeof(host_addr->un);
         host_addr->un.sun_family = AF_UNIX;
@@ -435,7 +435,7 @@ static int connect_to_peer(nw_clt *clt)
         nw_sock_host_addr(clt->ses.sockfd, clt->ses.host_addr);
         if (nw_ses_start(&clt->ses) < 0)
             return -1;
-        if (clt->host) {
+        if (clt->name) {
             /* a dgram client is usable at once, except when its server
              * had to be looked up first: say when it is */
             clt->resolve_again = true;
@@ -470,7 +470,7 @@ void nw_clt_release(nw_clt *clt)
         nw_buf_pool_release(clt->buf_pool);
     }
     free(clt->ses.host_addr);
-    free(clt->host);
+    free(clt->name);
     free(clt->addrs);
     free(clt);
 }

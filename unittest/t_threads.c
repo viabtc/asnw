@@ -167,7 +167,7 @@ static void *run(void *arg)
     w->loop = nw_default_loop;
     CHECK(w->loop != NULL);
 
-    nw_addr_t addr;
+    nw_addr addr;
     CHECK_EQ(nw_sock_host_addr(w->svr->svr_list[0].sockfd, &addr), 0);
     snprintf(cfg, sizeof(cfg), "tcp@%s", nw_sock_human_addr(&addr));
     snprintf(w->addr_text, sizeof(w->addr_text), "%s", nw_sock_human_addr(&addr));

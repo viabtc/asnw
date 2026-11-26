@@ -45,7 +45,7 @@ int main(void)
     CHECK_EQ(svr_recv, 1);
 
     /* a third party sends one datagram to the client's port */
-    nw_addr_t clt_addr;
+    nw_addr clt_addr;
     CHECK_EQ(nw_sock_host_addr(clt->ses.sockfd, &clt_addr), 0);
     clt_addr.in.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     int other = socket(AF_INET, SOCK_DGRAM, 0);

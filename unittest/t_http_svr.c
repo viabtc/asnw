@@ -10,8 +10,8 @@
 # define BIG_SIZE (2 * 1024 * 1024)
 
 static nw_http_svr *svr;
-static nw_addr_t tcp_addr;
-static nw_addr_t unix_addr;
+static nw_addr tcp_addr;
+static nw_addr unix_addr;
 static char *big_body;
 static int request_count;
 static int refused_count;

@@ -25,7 +25,7 @@
  *   (callbacks, memset it to 0 first), then
  *   nw_svr_create -> nw_svr_start -> nw_loop_run ... -> nw_svr_release
  *
- * all callbacks run on the loop thread. see test/echo_server.c.
+ * all callbacks run on the loop thread. see example/echo_server.c.
  *
  * session lifetime
  *
@@ -70,7 +70,7 @@
 
 typedef struct nw_svr_bind {
     /* the address to listen on */
-    nw_addr_t addr;
+    nw_addr addr;
     /* SOCK_STREAM, SOCK_DGRAM or SOCK_SEQPACKET */
     int sock_type;
 } nw_svr_bind;
@@ -138,8 +138,8 @@ typedef struct nw_svr_type {
      * non-blocking and close-on-exec.
      * return < 0 and sockfd is closed for you; otherwise sockfd is yours:
      * hand it to another process (nw_ses_send_fd), or close it.
-     * see test/listener_worker.c */
-    int (*on_accept)(nw_ses *ses, int sockfd, nw_addr_t *peer_addr);
+     * see example/listener_worker.c */
+    int (*on_accept)(nw_ses *ses, int sockfd, nw_addr *peer_addr);
     /* optional
      *
      * called when a connection has been added to the server and can be
@@ -347,6 +347,6 @@ int nw_svr_add_clt_fd(nw_svr *svr, int fd);
  * accept said. fd has to be non-blocking, as the one given to on_accept
  * is. this is how nw_hub moves connections to its threads.
  * return 0, or -1 on failure, in which case fd is still yours to close */
-int nw_svr_add_accepted_fd(nw_svr *svr, uint32_t bind_index, int fd, nw_addr_t *peer_addr);
+int nw_svr_add_accepted_fd(nw_svr *svr, uint32_t bind_index, int fd, nw_addr *peer_addr);
 
 # endif

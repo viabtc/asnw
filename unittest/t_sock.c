@@ -3,7 +3,7 @@
 
 int main(void)
 {
-    nw_addr_t addr;
+    nw_addr addr;
     int type = 0;
 
     CHECK_EQ(nw_sock_cfg_parse("tcp@127.0.0.1:1234", &addr, &type), 0);

@@ -143,7 +143,7 @@ static void on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
 
 int main(void)
 {
-    nw_addr_t addr[2];
+    nw_addr addr[2];
     rpc_clt_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.name = "demo";

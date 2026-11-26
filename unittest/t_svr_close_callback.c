@@ -12,7 +12,7 @@
 # define N 40
 
 static nw_svr *svr;
-static nw_addr_t addr;
+static nw_addr addr;
 static int close_calls[N + 16];
 static int total_closes;
 static int cascade;         /* how many other connections a close callback closes */

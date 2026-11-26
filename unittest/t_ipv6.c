@@ -8,7 +8,7 @@
 
 static void expect(const char *cfg, const char *ip, int port)
 {
-    nw_addr_t addr;
+    nw_addr addr;
     int type;
     CHECK_EQ(nw_sock_cfg_parse(cfg, &addr, &type), 0);
     CHECK_EQ(addr.family, AF_INET6);

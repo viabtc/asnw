@@ -18,7 +18,7 @@
  * every minute or posting an alert, not for talking to another service
  * thousands of times a second.
  *
- *     static void on_config(int error, nw_req_rsp *rsp, void *privdata)
+ *     static void on_config(int error, nw_req_response *rsp, void *privdata)
  *     {
  *         if (error)
  *             log("config: %s", rsp->message);
@@ -47,10 +47,10 @@
 /* a response bigger than this, head included, is refused, and so is the
  * body of a POST */
 # define NW_REQ_MAX_SIZE (16 * 1024 * 1024)
-# define NW_REQ_URL_MAX 4096
+# define NW_REQ_MAX_URL 4096
 # define NW_REQ_MAX_HEADERS 64
 /* the timeout when 0 is given, in seconds */
-# define NW_REQ_TIMEOUT 10.0
+# define NW_REQ_DEFAULT_TIMEOUT 10.0
 
 enum {
     NW_REQ_ERR_RESOLVE = 1,     /* the name of the server was not found */
@@ -67,7 +67,7 @@ typedef struct nw_req_header {
     char *value;
 } nw_req_header;
 
-typedef struct nw_req_rsp {
+typedef struct nw_req_response {
     /* 200, 404 ... a status other than 200 is not an error: check it */
     int status;
     /* as sent by the server, see nw_req_get_header */
@@ -78,7 +78,7 @@ typedef struct nw_req_rsp {
     size_t body_size;
     /* when error is set: what went wrong, for the log. "" otherwise */
     const char *message;
-} nw_req_rsp;
+} nw_req_response;
 
 /*
  * called on the loop thread, once for each request that was not cancelled.
@@ -86,7 +86,7 @@ typedef struct nw_req_rsp {
  * NW_REQ_ERR_...: then rsp only holds a message. rsp and all it points to
  * are gone when the callback returns: copy what you keep.
  */
-typedef void (*nw_req_callback)(int error, nw_req_rsp *rsp, void *privdata);
+typedef void (*nw_req_callback)(int error, nw_req_response *rsp, void *privdata);
 
 typedef struct nw_req nw_req;
 
@@ -95,7 +95,7 @@ typedef struct nw_req nw_req;
  * address or an ipv6 address in brackets.
  *
  * timeout, in seconds, is for the whole request, the wait for a free
- * thread included; 0 means NW_REQ_TIMEOUT. one thing may outlast it: the
+ * thread included; 0 means NW_REQ_DEFAULT_TIMEOUT. one thing may outlast it: the
  * lookup of a name cannot be interrupted, so with a dns server that does
  * not answer the error comes when the system resolver gives up.
  *
@@ -149,6 +149,6 @@ int nw_req_url_encode(const void *data, size_t size, char *dest, size_t dest_siz
 
 /* the value of a header of the response, whatever the case of its name,
  * or NULL */
-const char *nw_req_get_header(nw_req_rsp *rsp, const char *name);
+char *nw_req_get_header(nw_req_response *rsp, const char *name);
 
 # endif

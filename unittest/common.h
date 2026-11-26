@@ -122,7 +122,7 @@ UT_UNUSED static nw_clt *ut_clt(const char *cfg_str, nw_clt_type *type, uint32_t
 /* port actually bound by the i-th listener (bind to port 0, then ask) */
 UT_UNUSED static int ut_svr_port(nw_svr *svr, int i)
 {
-    nw_addr_t addr;
+    nw_addr addr;
     CHECK(nw_sock_host_addr(svr->svr_list[i].sockfd, &addr) == 0);
     return ntohs(addr.in.sin_port);
 }

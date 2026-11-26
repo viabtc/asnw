@@ -51,7 +51,7 @@
  * of a connection can be told from its id.
  *
  * only connection oriented binds are possible: stream (tcp, unix) and
- * seqpacket. see test/hub_server.c.
+ * seqpacket. see example/hub_server.c.
  */
 
 typedef struct nw_hub nw_hub;
@@ -99,7 +99,7 @@ typedef struct nw_hub_type {
      * were closed. release here what on_thread_start created */
     void (*on_thread_stop)(nw_hub *hub, uint32_t index);
     /* optional, for a layer that wraps a nw_svr (nw_ws does). if set,
-     * svr_release must be set too
+     * on_svr_release must be set too
      *
      * called on every worker thread, before on_thread_start, to create
      * the nw_svr of that worker in place of the default, which is
@@ -107,10 +107,10 @@ typedef struct nw_hub_type {
      * the binds of cfg.svr and must not be started. its callbacks are the
      * ones used for the connections; type.svr then only serves the hub
      * thread (on_error_msg). return NULL on failure */
-    nw_svr *(*svr_create)(nw_hub *hub, uint32_t index);
+    nw_svr *(*on_svr_create)(nw_hub *hub, uint32_t index);
     /* called on the worker thread when it ends, after on_thread_stop, to
-     * release what svr_create made. the connections are closed already */
-    void (*svr_release)(nw_hub *hub, uint32_t index, nw_svr *svr);
+     * release what on_svr_create made. the connections are closed already */
+    void (*on_svr_release)(nw_hub *hub, uint32_t index, nw_svr *svr);
 } nw_hub_type;
 
 /* the fields are for reading only */

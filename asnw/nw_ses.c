@@ -117,7 +117,7 @@ static int nw_write_packet(nw_ses *ses, const void *data, size_t size)
 }
 
 /* is this datagram from the server a client session is configured for? */
-static bool dgram_from_peer(nw_addr_t *peer, nw_addr_t *from)
+static bool dgram_from_peer(nw_addr *peer, nw_addr *from)
 {
     if (peer->family == AF_INET) {
         /* replies to a broadcast, multicast or wildcard target come from
@@ -287,7 +287,7 @@ static void on_can_read(nw_ses *ses)
                     break;
                 /* addrlen is value-result: it must be reset before every call,
                  * otherwise a short source address truncates all later ones */
-                nw_addr_t from;
+                nw_addr from;
                 memset(&from, 0, sizeof(from));
                 from.addrlen = sizeof(from.un);
                 int ret = recvfrom(ses->sockfd, ses->read_buf->data, ses->read_buf->size, 0, \
@@ -313,7 +313,7 @@ static void on_can_read(nw_ses *ses)
                         continue;
                 } else {
                     /* a server replies to the sender of the current datagram */
-                    memcpy(&ses->peer_addr, &from, sizeof(nw_addr_t));
+                    memcpy(&ses->peer_addr, &from, sizeof(nw_addr));
                 }
                 int pkg_size = ret;
                 ret = ses->decode_pkg(ses, ses->read_buf->data, pkg_size);
@@ -471,7 +471,7 @@ static void on_can_accept(nw_ses *ses)
         return;
 
     while (true) {
-        nw_addr_t peer_addr;
+        nw_addr peer_addr;
         memset(&peer_addr, 0, sizeof(peer_addr));
         peer_addr.family = ses->host_addr->family;
         peer_addr.addrlen = ses->host_addr->addrlen;
@@ -550,7 +550,7 @@ static void libev_on_connect_evt(struct ev_loop *loop, ev_io *watcher, int event
         on_can_connect(ses);
 }
 
-int nw_ses_bind(nw_ses *ses, nw_addr_t *addr)
+int nw_ses_bind(nw_ses *ses, nw_addr *addr)
 {
     if (addr->family == AF_UNIX) {
         /* remove a stale socket left by a previous run, but never anything else */
@@ -581,7 +581,7 @@ int nw_ses_listen(nw_ses *ses, int backlog)
     return 0;
 }
 
-int nw_ses_connect(nw_ses *ses, nw_addr_t *addr)
+int nw_ses_connect(nw_ses *ses, nw_addr *addr)
 {
     int ret = connect(ses->sockfd, NW_SOCKADDR(addr), addr->addrlen);
     if (ret == 0) {

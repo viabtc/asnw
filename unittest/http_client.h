@@ -22,7 +22,7 @@ struct response {
     size_t body_size;
 };
 
-UT_UNUSED static struct client *client_new(nw_addr_t *addr)
+UT_UNUSED static struct client *client_new(nw_addr *addr)
 {
     struct client *c = calloc(1, sizeof(struct client));
     c->fd = socket(addr->family, SOCK_STREAM, 0);
@@ -107,7 +107,7 @@ UT_UNUSED static bool client_closed(struct client *c, double timeout)
     return c->eof && c->len == 0;
 }
 
-UT_UNUSED static int simple(nw_addr_t *addr, const char *request, struct response *rsp)
+UT_UNUSED static int simple(nw_addr *addr, const char *request, struct response *rsp)
 {
     struct client *c = client_new(addr);
     client_puts(c, request);

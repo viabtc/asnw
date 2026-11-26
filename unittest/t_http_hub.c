@@ -17,7 +17,7 @@
 # include "http_client.h"
 
 static nw_http_svr *front;
-static nw_addr_t addr;
+static nw_addr addr;
 static int marker;
 static int requests, closes, wrong, thread_starts, thread_stops, jobs_done;
 static int fail_start_at = -1;

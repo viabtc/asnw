@@ -97,7 +97,7 @@ int main(void)
 
     /* a connection added from outside is made so */
     int outside = socket(AF_INET, SOCK_STREAM, 0);
-    nw_addr_t addr;
+    nw_addr addr;
     CHECK_EQ(nw_sock_host_addr(svr->svr_list[0].sockfd, &addr), 0);
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in in;

@@ -17,7 +17,7 @@ struct user {
 };
 
 static nw_ws_svr *svr;
-static nw_addr_t addr;
+static nw_addr addr;
 static char *big;
 static int alloc_count, free_count, open_count, close_count, upgrade_count, error_count;
 static int message_count;
@@ -541,7 +541,7 @@ int main(void)
      * one stays silent and is closed with 1001
      */
     cfg.origin = NULL;
-    cfg.keep_alive_timeout = 2.0;
+    cfg.idle_timeout = 2.0;
     cfg.ping_interval = 0.5;
     svr = start_server(&cfg, &type);
     struct client *alive = ws_connect("/");

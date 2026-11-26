@@ -245,16 +245,16 @@ static int hex_value(char c)
     return -1;
 }
 
-int nw_http_url_decode(char *s, size_t len, bool plus_as_space)
+int nw_http_url_decode(char *data, size_t size, bool plus_as_space)
 {
     size_t out = 0;
-    for (size_t in = 0; in < len; ++in) {
-        char c = s[in];
+    for (size_t in = 0; in < size; ++in) {
+        char c = data[in];
         if (c == '%') {
-            if (in + 2 >= len)
+            if (in + 2 >= size)
                 return -1;
-            int high = hex_value(s[in + 1]);
-            int low = hex_value(s[in + 2]);
+            int high = hex_value(data[in + 1]);
+            int low = hex_value(data[in + 2]);
             if (high < 0 || low < 0)
                 return -1;
             c = (char)(high * 16 + low);
@@ -262,10 +262,10 @@ int nw_http_url_decode(char *s, size_t len, bool plus_as_space)
         } else if (c == '+' && plus_as_space) {
             c = ' ';
         }
-        s[out++] = c;
+        data[out++] = c;
     }
-    if (out < len)
-        s[out] = '\0';
+    if (out < size)
+        data[out] = '\0';
     return (int)out;
 }
 
@@ -1112,8 +1112,8 @@ nw_http_svr *nw_http_svr_create(nw_http_svr_cfg *cfg, nw_http_svr_type *type, vo
         return NULL;
     hub_cfg.thread_count = cfg->thread_count;
     hub_cfg.queue_limit = cfg->queue_limit;
-    hub_type.svr_create = worker_svr_create;
-    hub_type.svr_release = worker_svr_release;
+    hub_type.on_svr_create = worker_svr_create;
+    hub_type.on_svr_release = worker_svr_release;
     if (type->on_thread_start)
         hub_type.on_thread_start = on_thread_start;
     if (type->on_thread_stop)

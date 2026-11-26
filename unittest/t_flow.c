@@ -10,7 +10,7 @@
 # define CHUNK (64 * 1024)
 
 static nw_svr *svr;
-static nw_addr_t addr;
+static nw_addr addr;
 
 /* what the server does with a connection is set by the test */
 static int recv_count, drain_count, close_count;

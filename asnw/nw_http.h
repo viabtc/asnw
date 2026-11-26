@@ -26,7 +26,7 @@
  *   nw_http_svr_create -> nw_http_svr_start -> nw_loop_run
  *   in on_request, fill a nw_http_response and call nw_http_reply
  *
- * see test/http_server.c.
+ * see example/http_server.c.
  *
  * reading is zero copy
  *
@@ -131,11 +131,11 @@ char *nw_http_get_header(nw_http_request *req, const char *name);
 /* is this header called `name`, case insensitive */
 bool nw_http_header_is(nw_http_header *header, const char *name);
 
-/* percent decode len bytes of s in place ("%41" -> "A"; with plus_as_space
+/* percent decode size bytes of data in place ("%41" -> "A"; with plus_as_space
  * also "+" -> " ", as in query strings and form bodies). the result is
- * '\0' terminated if it got shorter. return the new length, or -1 if s
+ * '\0' terminated if it got shorter. return the new length, or -1 if data
  * holds a broken escape */
-int nw_http_url_decode(char *s, size_t len, bool plus_as_space);
+int nw_http_url_decode(char *data, size_t size, bool plus_as_space);
 
 /*
  * parse one complete request (head and body) of `size` bytes, in place.

@@ -43,7 +43,7 @@ static void on_message(nw_ses *ses, bool binary, void *data, size_t size)
 
 static int knock(nw_ses *listener, const char *request)
 {
-    nw_addr_t addr;
+    nw_addr addr;
     CHECK_EQ(nw_sock_host_addr(listener->sockfd, &addr), 0);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     CHECK(fd >= 0);

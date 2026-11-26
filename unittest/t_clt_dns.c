@@ -162,7 +162,7 @@ static void check_parse(const char *str, int ret, const char *host, int cfg_port
         exit(1);
     }
     if (ret == 0) {
-        CHECK(strcmp(cfg.host, host) == 0);
+        CHECK(strcmp(cfg.name, host) == 0);
         CHECK_EQ(cfg.port, cfg_port);
     }
 }
@@ -193,7 +193,7 @@ int main(void)
     /* names are for tcp and udp */
     nw_clt_cfg bad;
     memset(&bad, 0, sizeof(bad));
-    snprintf(bad.host, sizeof(bad.host), "one.test");
+    snprintf(bad.name, sizeof(bad.name), "one.test");
     bad.sock_type = SOCK_SEQPACKET;
     bad.max_pkg_size = 1024;
     nw_clt_type type;
@@ -292,9 +292,9 @@ int main(void)
     /* closed while the lookup is running: its answer changes nothing */
     client_start(&c, "tcp", "slow.test", 0.1);
     ut_run_for(0.05);
-    CHECK(c.clt->dns_req != NULL);
+    CHECK(c.clt->dns_query != NULL);
     CHECK_EQ(nw_clt_close(c.clt), 0);
-    CHECK(c.clt->dns_req == NULL);
+    CHECK(c.clt->dns_query == NULL);
     ut_run_for(0.5);
     CHECK_EQ(c.connected, 0);
     CHECK(!nw_clt_connected(c.clt));

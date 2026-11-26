@@ -98,7 +98,7 @@ int main(void)
 
 `decode_pkg` and `on_recv_pkg` are required. The optional callbacks are `on_new_connection`, `on_connection_close`, `on_error_msg`, `on_accept`, `on_recv_fd` and `on_privdata_alloc` / `on_privdata_free` for per connection data. `nw_svr.h` documents each one.
 
-A client is built the same way from `nw_clt_cfg` and `nw_clt_type`, then `nw_clt_start`. See `test/test_clt.c`.
+A client is built the same way from `nw_clt_cfg` and `nw_clt_type`, then `nw_clt_start`. See `example/ping_clt.c`.
 
 ## An HTTP server
 
@@ -219,7 +219,7 @@ int main(void)
 - **Per connection data.** `on_privdata_alloc` / `on_privdata_free` give every connection a struct of yours, reached with `nw_ws_privdata(ses)`. The upgrade request is only valid in `on_upgrade`, so that is where to copy what you need from it.
 - **Pushing.** `nw_ws_broadcast_text` sends to everybody. To push to one client from outside its callbacks, keep `ses->id` and use `nw_ws_send_text_id(svr, id, ...)`.
 - **Several threads.** Set `thread_count` in the cfg and the server runs on a `nw_hub`: the thread that created it accepts, the connections live on that many worker threads and their callbacks run there. Sending and closing by id and the broadcasts work from any thread. The callbacks stay as they are if they only use per connection data; data shared between connections is yours to lock. 0, the default, means no threads at all.
-- **Keeping connections alive.** With `ping_interval` set the server pings silent clients; one that stays silent for `keep_alive_timeout` is closed.
+- **Keeping connections alive.** With `ping_interval` set the server pings silent clients; one that stays silent for `idle_timeout` is closed.
 - **Not supported:** TLS, compression (it is declined, clients fall back), UTF-8 validation of text messages, plain HTTP on the same port. A message has to fit in `max_message_size` (64K by default).
 
 ## Addresses
@@ -269,19 +269,19 @@ The protocol name is case insensitive. Hosts are numeric addresses: `nw_sock_cfg
 
 ## Examples
 
-Built into `build/debug/test/`, `build/debug/wrapper/` and `build/debug/c1000k/`.
+Built into `build/debug/example/`, `build/debug/wrapper/` and `build/debug/c1000k/`.
 
 | Program | What it shows |
 |---------|---------------|
-| `test/echo_server` | Echo server on any number of addresses: `echo_server 'tcp@127.0.0.1:1234' 'stream@/tmp/echo.sock'` |
-| `test/http_server` | HTTP server, try it with curl: `http_server 'tcp@127.0.0.1:8080'`. `http_server 4 'tcp@...'` runs it on 4 threads |
-| `test/hub_server` | Chat server on N threads: `hub_server 4 'tcp@127.0.0.1:1234'`, then `nc 127.0.0.1 1234` in a few terminals |
-| `test/ws_server` | WebSocket chat room: `ws_server 'tcp@127.0.0.1:8081'`, then connect from a browser console. `ws_server 4 'tcp@...'` runs it on 4 threads |
-| `test/test_clt` | Client that pings a server once a second: `test_clt 'tcp@127.0.0.1:1234'` |
-| `test/req_get` | GET a url with `nw_req` and print the response: `req_get 'http://127.0.0.1:8080/hello'` |
-| `test/listener_worker` | One process accepts and hands each connection to one of N worker processes by passing its fd: `listener_worker 'tcp@127.0.0.1:1234' 10` |
-| `test/test_timer`, `test/test_state` | Timer and state table |
-| `test/test_*_clt` | Plain socket clients, one per transport, for poking at a server |
+| `example/echo_server` | Echo server on any number of addresses: `echo_server 'tcp@127.0.0.1:1234' 'stream@/tmp/echo.sock'` |
+| `example/http_server` | HTTP server, try it with curl: `http_server 'tcp@127.0.0.1:8080'`. `http_server 4 'tcp@...'` runs it on 4 threads |
+| `example/hub_server` | Chat server on N threads: `hub_server 4 'tcp@127.0.0.1:1234'`, then `nc 127.0.0.1 1234` in a few terminals |
+| `example/ws_server` | WebSocket chat room: `ws_server 'tcp@127.0.0.1:8081'`, then connect from a browser console. `ws_server 4 'tcp@...'` runs it on 4 threads |
+| `example/ping_clt` | Client that pings a server once a second: `ping_clt 'tcp@127.0.0.1:1234'` |
+| `example/req_get` | GET a url with `nw_req` and print the response: `req_get 'http://127.0.0.1:8080/hello'` |
+| `example/listener_worker` | One process accepts and hands each connection to one of N worker processes by passing its fd: `listener_worker 'tcp@127.0.0.1:1234' 10` |
+| `example/timer`, `example/state` | Timer and state table |
+| `example/*_clt` | Plain socket clients, one per transport, for poking at a server |
 | `c1000k/` | Server and client for a one million connection test |
 | `wrapper/` | `ut_rpc`, an example of a higher level wrapper built on `nw_svr` and `nw_clt`. See [wrapper/README.md](wrapper/README.md) |
 | `asnw/AGENTS.md` | Notes for AI coding agents that use or change the library: the modules, the rules that are easy to get wrong, and the design decisions that are not bugs |

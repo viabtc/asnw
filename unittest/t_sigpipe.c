@@ -36,7 +36,7 @@ int main(void)
     ut_svr(cfg, &st, 1024, NULL);
 
     /* a plain client: connect, send one request, hang up before the reply */
-    nw_addr_t addr;
+    nw_addr addr;
     int type;
     CHECK_EQ(nw_sock_cfg_parse(cfg, &addr, &type), 0);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);

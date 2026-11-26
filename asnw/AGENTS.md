@@ -83,7 +83,7 @@ A client is the same with `nw_clt_cfg` (`nw_clt_cfg_parse` takes an
 address or a name), `nw_clt_type`, `nw_clt_create`, `nw_clt_start`. An
 HTTP server sets `on_request` in `nw_http_svr_type` and answers with
 `nw_http_reply_text` or `nw_http_reply`. Complete examples are in the
-`test/` directory of the repository: `echo_server.c`, `test_clt.c`,
+`example/` directory of the repository: `echo_server.c`, `ping_clt.c`,
 `http_server.c`, `ws_server.c`, `hub_server.c`, `req_get.c`.
 
 ## Rules that are easy to get wrong
@@ -107,7 +107,7 @@ HTTP server sets `on_request` in `nw_http_svr_type` and answers with
 
 4. **What a callback is given is only valid inside the callback.** The
    `data` of `on_recv_pkg`, a `nw_http_request` and everything it points to
-   (parsed in place), a `nw_req_rsp`, a `nw_job_entry`. Copy what you keep.
+   (parsed in place), a `nw_req_response`, a `nw_job_entry`. Copy what you keep.
 
 5. **`decode_pkg` only tells where a message ends.** It must not send,
    close, or keep state about the connection.

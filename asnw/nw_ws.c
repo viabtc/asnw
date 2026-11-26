@@ -600,7 +600,7 @@ static void on_handshake(nw_ws_svr *svr, nw_ses *ses, nw_ws_conn *conn, char *da
     /* the handshake made its deadline. from here on the idle timeout paces
      * the pings, or is the keep-alive timeout itself */
     nw_svr_set_clt_deadline(raw_svr, ses, 0);
-    nw_svr_set_clt_idle_timeout(raw_svr, ses, svr->ping_interval > 0 ? svr->ping_interval : svr->keep_alive_timeout);
+    nw_svr_set_clt_idle_timeout(raw_svr, ses, svr->ping_interval > 0 ? svr->ping_interval : svr->idle_timeout);
     if (nw_ses_send(ses, response, len) < 0 || nw_svr_get_clt(raw_svr, id) != ses)
         return;
     if (svr->type.on_open)
@@ -900,7 +900,7 @@ static void on_timeout(nw_ses *ses)
         return;
     }
     double silence = ev_now(nw_default_loop) - ses->active_time;
-    if (silence >= svr->keep_alive_timeout) {
+    if (silence >= svr->idle_timeout) {
         report(svr, ses, "idle too long");
         ws_close(ses, conn, NW_WS_CLOSE_GOING_AWAY, "idle timeout");
     } else {
@@ -937,7 +937,7 @@ static nw_ws_svr *ws_svr_new(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type, void *pri
     svr->max_message_size = cfg->max_message_size ? cfg->max_message_size : NW_WS_DEFAULT_MAX_MESSAGE;
     if (svr->max_message_size > NW_WS_MAX_MESSAGE_LIMIT)
         svr->max_message_size = NW_WS_MAX_MESSAGE_LIMIT;
-    svr->keep_alive_timeout = cfg->keep_alive_timeout > 0 ? cfg->keep_alive_timeout : NW_WS_DEFAULT_KEEP_ALIVE;
+    svr->idle_timeout = cfg->idle_timeout > 0 ? cfg->idle_timeout : NW_WS_DEFAULT_KEEP_ALIVE;
     svr->ping_interval = cfg->ping_interval > 0 ? cfg->ping_interval : 0;
     if (cfg->protocol && cfg->protocol[0])
         svr->protocol = strdup(cfg->protocol);
@@ -1046,8 +1046,8 @@ nw_ws_svr *nw_ws_svr_create(nw_ws_svr_cfg *cfg, nw_ws_svr_type *type, void *priv
         return NULL;
     hub_cfg.thread_count = cfg->thread_count;
     hub_cfg.queue_limit = cfg->queue_limit;
-    hub_type.svr_create = worker_svr_create;
-    hub_type.svr_release = worker_svr_release;
+    hub_type.on_svr_create = worker_svr_create;
+    hub_type.on_svr_release = worker_svr_release;
     if (type->on_thread_start)
         hub_type.on_thread_start = on_thread_start;
     if (type->on_thread_stop)

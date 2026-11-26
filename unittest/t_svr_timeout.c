@@ -8,7 +8,7 @@
 # define BIG_SIZE (2 * 1024 * 1024)
 
 static nw_svr *svr;
-static nw_addr_t addr;
+static nw_addr addr;
 static char *big;
 static int close_count, timeout_count, recv_count, error_count;
 static double last_silence;
