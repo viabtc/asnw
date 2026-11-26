@@ -5,6 +5,7 @@ all:
 	gcc http_server.c -I ../asnw/ -L ../asnw/ -lasnw -lev -lpthread -std=gnu11 -g -o http_server
 	gcc ws_server.c -I ../asnw/ -L ../asnw/ -lasnw -lev -lpthread -std=gnu11 -g -o ws_server
 	gcc hub_server.c -I ../asnw/ -L ../asnw/ -lasnw -lev -lpthread -std=gnu11 -g -o hub_server
+	gcc req_get.c -I ../asnw/ -L ../asnw/ -lasnw -lev -lpthread -std=gnu11 -g -o req_get
 
 clean:
-	rm -rf echo_server test_clt listener_worker http_server ws_server hub_server
+	rm -rf echo_server test_clt listener_worker http_server ws_server hub_server req_get
