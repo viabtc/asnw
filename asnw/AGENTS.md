@@ -158,15 +158,17 @@ runs on the main thread.
 These were considered and decided. Do not "fix" them, and do not propose
 them again without a new reason:
 
-- **Pools and caches never give memory back to the system by themselves.**
-  Servers own their machine. The library also relies on it: memory
-  returned to a `nw_cache` or `nw_buf_pool` stays readable (a session is
-  still read after it is closed, an iterator steps off a deleted entry).
-  Freeing it from inside the library creates use-after-free. The one way
-  out is `nw_buf_pool_shrink`, which the program calls when it chooses to,
-  from a timer of its own: it frees the bufs beyond those in use and
-  beyond a minimum of 64. There is no such thing for `nw_cache`, whose
-  objects are small and whose addresses are counted on.
+- **Nothing is freed at the moment it is given back to a pool or a
+  cache.** The library relies on it: memory returned to a `nw_cache` or
+  `nw_buf_pool` stays readable (a session is still read after it is
+  closed, a callback that closed its connection still reads its message,
+  an iterator steps off a deleted entry). Freeing it there creates
+  use-after-free; it has been tried. Bufs are given back later and from a
+  timer only: every `nw_svr` calls `nw_buf_pool_shrink` once a minute,
+  keeping as many free bufs as are in use and at least 64. That policy
+  lives in `nw_svr.c`, the function only takes the number to keep. A
+  `nw_cache` never frees: its objects are small and their addresses are
+  counted on. A client's pool is not shrunk either, clients being few.
 - **`buf_limit` defaults to unlimited**, and there is no built-in rate
   limiting or backpressure policy. That belongs to the program.
 - **`nw_clt` has no reconnect backoff, no idle timeout and no heartbeat.**

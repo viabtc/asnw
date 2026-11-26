@@ -40,36 +40,34 @@ int main(void)
     CHECK_EQ(pool->free, 200);
     CHECK_EQ(pool->used, 0);
 
-    /* nw_buf_pool_shrink. nothing in use: the minimum stays */
-    CHECK_EQ(nw_buf_pool_shrink(pool), 200 - NW_BUF_POOL_MIN_FREE);
+    /* nw_buf_pool_shrink: the caller says how many free bufs stay */
+    CHECK_EQ(nw_buf_pool_shrink(pool, 150), 50);
+    CHECK_EQ(pool->free, 150);
+    CHECK_EQ(nw_buf_pool_shrink(pool, 150), 0);
+    CHECK_EQ(nw_buf_pool_shrink(pool, 1000), 0);        /* more than there are */
+    CHECK_EQ(nw_buf_pool_shrink(pool, 100), 50);
+    CHECK_EQ(pool->free, 100);
+    /* but never less than the minimum */
+    CHECK_EQ(nw_buf_pool_shrink(pool, 0), 100 - NW_BUF_POOL_MIN_FREE);
     CHECK_EQ(pool->free, NW_BUF_POOL_MIN_FREE);
-    CHECK_EQ(nw_buf_pool_shrink(pool), 0);
-    /* as many free bufs are kept as there are in use */
-    nw_buf *more[300];
-    for (int i = 0; i < 300; ++i)
+    CHECK_EQ(nw_buf_pool_shrink(pool, 0), 0);
+    CHECK_EQ(nw_buf_pool_shrink(pool, 10), 0);
+    CHECK_EQ(pool->used, 0);
+    /* bufs in use are not its business */
+    nw_buf *more[100];
+    for (int i = 0; i < 100; ++i)
         CHECK((more[i] = nw_buf_alloc(pool)) != NULL);
     CHECK_EQ(pool->free, 0);
-    CHECK_EQ(nw_buf_pool_shrink(pool), 0);
-    for (int i = 0; i < 200; ++i)
-        nw_buf_free(pool, more[i]);
+    CHECK_EQ(nw_buf_pool_shrink(pool, 0), 0);
     CHECK_EQ(pool->used, 100);
-    CHECK_EQ(nw_buf_pool_shrink(pool), 100);
-    CHECK_EQ(pool->free, 100);
-    /* less in use than the minimum: the minimum */
-    for (int i = 200; i < 260; ++i)
+    for (int i = 0; i < 100; ++i)
         nw_buf_free(pool, more[i]);
-    CHECK_EQ(pool->used, 40);
-    CHECK_EQ(pool->free, 160);
-    CHECK_EQ(nw_buf_pool_shrink(pool), 160 - NW_BUF_POOL_MIN_FREE);
-    for (int i = 260; i < 300; ++i)
-        nw_buf_free(pool, more[i]);
-    CHECK_EQ(nw_buf_pool_shrink(pool), 40);
-    CHECK_EQ(pool->free, NW_BUF_POOL_MIN_FREE);
-    CHECK_EQ(pool->used, 0);
+    CHECK_EQ(nw_buf_pool_shrink(pool, 80), 20);
+    CHECK_EQ(pool->free, 80);
     /* and the pool goes on as before: the bufs kept are used first */
     again = nw_buf_alloc(pool);
     CHECK(again != NULL);
-    CHECK_EQ(pool->free, NW_BUF_POOL_MIN_FREE - 1);
+    CHECK_EQ(pool->free, 79);
     CHECK_EQ(again->size, 8);
     nw_buf_free(pool, again);
 

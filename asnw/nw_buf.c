@@ -103,9 +103,10 @@ void nw_buf_free(nw_buf_pool *pool, nw_buf *buf)
     }
 }
 
-uint32_t nw_buf_pool_shrink(nw_buf_pool *pool)
+uint32_t nw_buf_pool_shrink(nw_buf_pool *pool, uint32_t keep)
 {
-    uint32_t keep = pool->used > NW_BUF_POOL_MIN_FREE ? pool->used : NW_BUF_POOL_MIN_FREE;
+    if (keep < NW_BUF_POOL_MIN_FREE)
+        keep = NW_BUF_POOL_MIN_FREE;
     uint32_t count = 0;
     while (pool->free > keep) {
         free(pool->free_arr[--pool->free]);

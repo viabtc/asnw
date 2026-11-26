@@ -59,6 +59,17 @@
  * sent yet. to say something last and be sure it arrives, send it and
  * call nw_svr_shutdown.
  *
+ * memory
+ *
+ * a connection with unfinished input holds one buf of max_pkg_size bytes,
+ * and what waits to be sent is kept in such bufs. they come from the pool
+ * of the server, which reuses them. once a minute the server gives those
+ * it has no use for back to the system: it keeps as many free bufs as it
+ * has in use, and at least 64. so the memory of a peak is returned within
+ * a minute or two, a server under steady load keeps what it works with,
+ * and a small one is left alone. there is nothing to set and nothing to
+ * call.
+ *
  * datagrams
  *
  * a dgram bind has no connections: on_open / on_close
@@ -240,6 +251,9 @@ typedef struct nw_svr {
     double timer_interval;
     bool in_sweep;
     double sweep_shortest;
+    /* once a minute, gives the bufs the pool has no use for back to the
+     * system */
+    nw_timer shrink_timer;
     uint64_t id_start;
     /* the privdata given to nw_svr_create. reach it from a callback with
      * ((nw_svr *)ses->svr)->privdata */

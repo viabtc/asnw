@@ -1,16 +1,19 @@
 /*
- * nw_buf_pool_shrink on the pool of a server at work. A timer of the
- * program calls it every millisecond while a hundred connections send
- * whole and partial messages, are closed in the middle of one, and while
- * a client that does not read lets thousands of bufs pile up to be sent.
- * Nothing is lost, and the pool ends up small again. The point of running
- * it is the sanitizers: a buf freed while something still uses it would
- * show there.
+ * A nw_svr gives the bufs its pool has no use for back to the system,
+ * from a timer of its own, once a minute. Here that timer is made to
+ * fire every millisecond while a hundred connections send whole and
+ * partial messages, are closed in the middle of one, and while a client
+ * that does not read lets thousands of bufs pile up to be sent. Nothing
+ * is lost, and the pool ends up small again. The point of running it is
+ * the sanitizers: a buf freed while something still uses it would show
+ * there.
  */
 # include <fcntl.h>
 # include <sys/socket.h>
 # include <netinet/in.h>
+# include <pthread.h>
 # include "common.h"
+# include "nw_hub.h"
 
 # define CLIENTS 100
 # define PKG 4096
@@ -35,13 +38,33 @@ static void on_error_msg(nw_ses *ses, const char *msg)
     errors++;
 }
 
-static void on_shrink_timer(nw_timer *timer, void *privdata)
+/* what the timer of the server does when its minute is over. return the
+ * number of bufs it gave back */
+static uint32_t minute_over(nw_svr *s)
 {
-    freed += nw_buf_pool_shrink(svr->buf_pool);
-    shrinks++;
-    /* what is kept is what the rule says */
-    nw_buf_pool *pool = svr->buf_pool;
+    nw_buf_pool *pool = s->buf_pool;
+    uint32_t before = pool->free;
+    s->shrink_timer.callback(&s->shrink_timer, s->shrink_timer.privdata);
+    /* as many free bufs stay as there are in use, and not less than 64 */
     CHECK(pool->free <= (pool->used > NW_BUF_POOL_MIN_FREE ? pool->used : NW_BUF_POOL_MIN_FREE));
+    CHECK(pool->free == before || pool->free >= NW_BUF_POOL_MIN_FREE);
+    return before - pool->free;
+}
+
+static void on_fast_timer(nw_timer *timer, void *privdata)
+{
+    freed += minute_over(svr);
+    shrinks++;
+}
+
+/* the servers of a hub are never started: they have the timer too */
+static int with_timer;
+
+static void on_worker(nw_hub *hub, void *data, size_t size)
+{
+    nw_svr *mine = nw_hub_svr(hub);
+    if (mine && nw_timer_active(&mine->shrink_timer) && mine->shrink_timer.interval == 60.0)
+        __sync_fetch_and_add(&with_timer, 1);
 }
 
 static int knock(void)
@@ -103,6 +126,44 @@ int main(void)
     st.decode_pkg = ut_line_decode;
     st.on_recv_pkg = on_recv_pkg;
     st.on_error_msg = on_error_msg;
+
+    /* a server has the timer from the moment it is created, set to a
+     * minute. the loop does not run for its sake: with nothing else to
+     * do, nw_loop_run returns (it would hang here otherwise) */
+    static nw_svr_bind bind;
+    CHECK_EQ(nw_sock_addr_parse("tcp@127.0.0.1:0", &bind.addr, &bind.sock_type), 0);
+    nw_svr_cfg cfg;
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.bind_count = 1;
+    cfg.binds = &bind;
+    cfg.max_pkg_size = PKG;
+    nw_svr *idle = nw_svr_create(&cfg, &st, NULL);
+    CHECK(idle != NULL);
+    CHECK(nw_timer_active(&idle->shrink_timer));
+    CHECK_EQ(idle->shrink_timer.interval, 60.0);
+    double begin = ev_time();
+    nw_loop_run();
+    CHECK(ev_time() - begin < 1.0);
+    CHECK_EQ(minute_over(idle), 0);                     /* nothing to give back */
+    nw_svr_release(idle);
+    nw_loop_run();                                      /* and the loop is as it was */
+
+    /* so do the servers of the threads of a hub */
+    nw_hub_cfg hc;
+    memset(&hc, 0, sizeof(hc));
+    hc.svr = cfg;
+    hc.thread_count = 3;
+    nw_hub_type ht;
+    memset(&ht, 0, sizeof(ht));
+    ht.svr = st;
+    nw_hub *hub = nw_hub_create(&hc, &ht, NULL);
+    CHECK(hub != NULL);
+    CHECK_EQ(nw_hub_run_all(hub, on_worker, NULL, 0), 0);
+    for (int i = 0; i < 400 && __sync_fetch_and_add(&with_timer, 0) < 3; ++i)
+        usleep(5000);
+    CHECK_EQ(__sync_fetch_and_add(&with_timer, 0), 3);
+    nw_hub_release(hub);
+
     svr = ut_svr("tcp@127.0.0.1:0", &st, PKG, NULL);
     port = ut_svr_port(svr, 0);
     nw_buf_pool *pool = svr->buf_pool;
@@ -131,22 +192,22 @@ int main(void)
     for (int i = 0; i < 400 && pool->used < CLIENTS; ++i)
         ut_run_for(0.005);
     CHECK_EQ(pool->used, CLIENTS);
-    CHECK_EQ(nw_buf_pool_shrink(pool), 0);              /* all of them are in use */
+    CHECK_EQ(minute_over(svr), 0);                      /* all of them are in use */
     for (int i = 0; i < CLIENTS; ++i)
         push(fds[i], "\n", 1);
     for (int i = 0; i < 400 && pool->used > 0; ++i)
         ut_run_for(0.005);
     CHECK_EQ(pool->used, 0);
     CHECK_EQ(pool->free, CLIENTS);
-    CHECK_EQ(nw_buf_pool_shrink(pool), CLIENTS - NW_BUF_POOL_MIN_FREE);
+    CHECK_EQ(minute_over(svr), CLIENTS - NW_BUF_POOL_MIN_FREE);
     CHECK_EQ(pool->free, NW_BUF_POOL_MIN_FREE);
     for (int i = 0; i < CLIENTS; ++i)
         CHECK_EQ(drain(fds[i]), 15);
     echoed = 0;
 
-    /* from now on a timer does it, whatever goes on */
+    /* from now on the minute is over every millisecond, whatever goes on */
     nw_timer timer;
-    nw_timer_set(&timer, 0.001, true, on_shrink_timer, NULL);
+    nw_timer_set(&timer, 0.001, true, on_fast_timer, NULL);
     nw_timer_start(&timer);
 
     size_t lost_with_connection = 0;

@@ -31,17 +31,16 @@ typedef struct nw_buf {
 
 /*
  * nw_buf_pool is a factory of nw_buf of one size. freed bufs are kept for
- * reuse: the pool never gives memory back to the system by itself, so it
- * keeps the memory of its busiest moment until nw_buf_pool_release, or
- * until the program asks for it with nw_buf_pool_shrink.
+ * reuse, and given back to the system by nw_buf_pool_release or by
+ * nw_buf_pool_shrink, which a nw_svr calls for its pool once a minute.
  *
  * that is on purpose, here and in nw_cache: the memory of something that
  * was freed stays readable. the library counts on it - a session that was
  * closed inside a callback is still asked whether it is closed, a callback
  * that closed its own connection may still be reading its message, an
- * iterator steps off a deleted entry. don't make them free on their own;
- * nw_buf_pool_shrink is safe because the program calls it, at a moment
- * when nothing of the kind is going on.
+ * iterator steps off a deleted entry. so nothing is freed at the moment
+ * it is given back: nw_buf_pool_shrink is called later, from a timer,
+ * when nothing of the kind is going on. nw_cache has no such call.
  */
 
 /* the free bufs nw_buf_pool_shrink always leaves in a pool */
@@ -112,22 +111,17 @@ void nw_buf_free(nw_buf_pool *pool, nw_buf *buf);
  * given back first */
 void nw_buf_pool_release(nw_buf_pool *pool);
 /*
- * give the free bufs a pool has no use for back to the system. whether
- * and when is for the program to decide: after a peak of traffic, every
- * few minutes, never.
+ * give free bufs back to the system: `keep` of them stay in the pool, and
+ * never less than NW_BUF_POOL_MIN_FREE; the others are freed. how many to
+ * keep is for the caller to say, this function has no opinion. return the
+ * number of bufs freed.
  *
- * the pool keeps as many free bufs as it has bufs in use, and never less
- * than NW_BUF_POOL_MIN_FREE; what it has beyond that is freed. a pool at
- * work is therefore left with what it needs, and a small one is left
- * alone. return the number of bufs freed.
- *
- * call it on the thread the pool belongs to, from a timer of your own or
- * from nw_hub_run, not from a callback of a server or a client: a
- * callback that closed its connection may still be reading the message it
- * was given, out of a buf that is free by then. the pool of a server is
- * svr->buf_pool, that of a client clt->buf_pool.
+ * a nw_svr does this for its pool, see nw_svr.h, and a program has no
+ * need to. whoever calls it does so from a timer, not from a callback of
+ * a server or a client: a callback that closed its connection may still
+ * be reading the message it was given, out of a buf that is free by then.
  */
-uint32_t nw_buf_pool_shrink(nw_buf_pool *pool);
+uint32_t nw_buf_pool_shrink(nw_buf_pool *pool, uint32_t keep);
 
 /* nw_buf_list operation */
 
